@@ -76,6 +76,14 @@ import os
 import json
 import re
 import warnings
+import sys
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+from customer_similarity import CustomerSimilarityEngine
 
 warnings.filterwarnings('ignore')
 
@@ -167,6 +175,15 @@ FULL_DF = DATASET_DF.merge(
     suffixes=('_raw', '')
 )
 print(f"\n  Merged dataset shape: {FULL_DF.shape}")
+
+# ── Load/Initialize Customer Similarity Engine (KNN) ─────────────────────────
+print("\n[5/5] Loading Customer Similarity Engine (KNN)...")
+SIMILARITY_ENGINE = CustomerSimilarityEngine(data_df=DATASET_DF)
+if not SIMILARITY_ENGINE.load(data_df=DATASET_DF):
+    print("  Artifacts not found, fitting Customer Similarity Engine...")
+    SIMILARITY_ENGINE.fit(DATASET_DF)
+    SIMILARITY_ENGINE.save()
+print("  ✓ Customer Similarity Engine ready")
 
 
 # =============================================================================
@@ -331,6 +348,47 @@ class WhatIfResponse(BaseModel):
     original_risk:        str      # HIGH / MEDIUM / LOW
     new_risk:             str      # HIGH / MEDIUM / LOW
     improved:             bool     # True if change is negative (risk went down)
+
+
+class CustomerSimilarityRequest(BaseModel):
+    """Request body for POST /api/customer-similarity."""
+    customer_id: str
+    n_neighbors: Optional[int] = 5
+
+
+class SimilarCustomerDetail(BaseModel):
+    """Details of a single similar historical customer."""
+    customer_id: str
+    name: str
+    similarity_score: float
+    distance: float
+    similarity_explanation: str
+    historical_churn: Optional[int] = None
+    historical_outcome: str
+    churn_prob: float
+    churn_percent: str
+    risk_level: str
+    plan_type: str
+    monthly_charge: int
+    tenure_months: int
+    watch_hours_per_week: float
+    logins_last_30_days: int
+    last_login_days_ago: int
+    payment_failures_3m: int
+    support_tickets: int
+    device_type: str
+    preferred_genre: str
+    payment_method: str
+    num_profiles: int
+    age: int
+
+
+class CustomerSimilarityResponse(BaseModel):
+    """Response payload for customer similarity search."""
+    selected_customer: dict
+    similar_customers: List[SimilarCustomerDetail]
+    count: int
+    insights: List[str]
 
 
 # =============================================================================
@@ -500,6 +558,7 @@ def health_check():
             "customers":        "GET  /customers",
             "customer_detail":  "GET  /customer/{id}",
             "what_if":          "POST /whatif",
+            "customer_similarity": "POST /api/customer-similarity",
             "retention":        "GET  /retention/{id}",
             "segments":         "GET  /segments",
             "dashboard":        "GET  /dashboard/summary",
@@ -782,6 +841,45 @@ def what_if_simulation(request: WhatIfRequest):
         new_risk=            get_risk_level(new_prob),
         improved=            change < 0,
     )
+
+
+# ── ENDPOINT 4B: Customer Similarity Finder (KNN) ─────────────────────────────
+@app.post("/api/customer-similarity", response_model=CustomerSimilarityResponse, tags=["Customer Similarity"])
+@app.post("/customer-similarity", response_model=CustomerSimilarityResponse, tags=["Customer Similarity"])
+def get_customer_similarity(request: CustomerSimilarityRequest):
+    """
+    Finds the N most similar historical customers using K-Nearest Neighbors (KNN).
+
+    - Computes geometric similarity across behavioral, engagement, and subscription features.
+    - Excludes the selected customer's own record from the returned neighbor list.
+    - Preserves ground-truth historical churn outcomes from the dataset.
+    - Returns distance-derived similarity percentages and factual lookalike insights.
+    """
+    cid = request.customer_id.strip()
+    n_k = request.n_neighbors if request.n_neighbors and request.n_neighbors > 0 else 5
+
+    if cid not in FULL_DF["customer_id"].values:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Customer '{cid}' not found. Please provide a valid customer ID (e.g., CUST00001)."
+        )
+
+    try:
+        results = SIMILARITY_ENGINE.find_similar_customers(
+            customer_id=cid,
+            n_neighbors=n_k,
+            full_df=FULL_DF,
+            xgboost_model=MODEL,
+            feature_names=FEATURE_NAMES,
+            build_feature_row_fn=build_feature_row,
+        )
+        return results
+    except KeyError as ke:
+        raise HTTPException(status_code=404, detail=str(ke))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Similarity calculation failed: {str(e)}")
 
 
 # ── ENDPOINT 5: Gemini Retention Email ────────────────────────────────────────

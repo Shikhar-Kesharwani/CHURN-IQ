@@ -43,6 +43,16 @@ ChurnIQ Pro goes beyond basic churn prediction — it tells you **WHO** will chu
 - Segments customers into High / Medium / Low value
 - Helps prioritize: High CLV + High Risk = act immediately
 
+### 👥 Customer Similarity Finder (KNN)
+- **K-Nearest Neighbors (KNN)** lookalike search engine across 5,000 OTT customers
+- Discovers the **5 most similar historical customers** based on actual behavioral and subscription patterns
+- Displays **actual ground-truth churn outcomes** ("Retained" vs "Churned") alongside current XGBoost churn probabilities
+- **Distance-derived similarity percentage**: Normalized geometric similarity score in standardized feature space
+- **Target leakage prevention**: Churn labels, CLV, and predictions are strictly excluded from distance calculations
+- **Self-exclusion**: Automatically filters out the query customer's own record from neighbor results
+- **Side-by-side customer comparison**: Direct head-to-head diff of viewing hours, logins, payment failures, support tickets, tenure, and charges
+- **Factual lookalike insights**: Generates data-driven takeaways based on lookalike churn rates and engagement gaps
+
 ###  Gemini AI Retention Emails
 - SHAP reasons → structured Gemini prompt → personalized email
 - Returns subject line, email body, 2 business actions, suggested offer
@@ -154,6 +164,7 @@ Part H → Predictions Table              (churn_prob + top 3 SHAP reasons)
 | GET | `/customers` | Full risk table + KPI summary |
 | GET | `/customer/{id}` | Single customer detail + SHAP |
 | POST | `/whatif` | Live what-if simulation |
+| POST | `/api/customer-similarity` | Customer Similarity Finder (KNN lookalike search) |
 | GET | `/retention/{id}` | Gemini AI email + actions |
 | GET | `/segments` | Churn stats by segment |
 | GET | `/dashboard/summary` | All KPIs in one call |
@@ -212,6 +223,106 @@ npm run dev
 | `is_new_customer` | `1 if tenure < 6 months` | 0–3 month customers have 72% churn rate |
 
 
+
+## 🔍 Customer Similarity Finder (KNN Architecture)
+
+### 1. What Customer Similarity Finder Does
+Customer Similarity Finder identifies the **5 most similar historical customers** for any given customer. By analyzing historical users who displayed almost identical behavioral and subscription patterns in the past, customer success and retention teams can see whether those lookalikes ultimately stayed or churned. This offers empirical, case-based validation alongside model-based churn probability.
+
+### 2. Why K-Nearest Neighbors (KNN) is Used
+- **Instance-Based Learning**: Unlike parametric models that summarize patterns into weights, KNN stores historical instances directly and retrieves true nearest neighbors in feature space.
+- **Explainability & Trust**: Retention managers can look at real peer examples ("Customer CUST00980 had nearly identical usage and churned after 2 payment failures") rather than treating the ML model as a black box.
+- **Unsupervised / Non-Parametric Geometry**: It finds proximity without assuming linear relationships, making it ideal for multi-attribute behavioral matching.
+
+### 3. Features Used for Similarity
+Only genuine behavioral and subscription features from the dataset are used:
+- **Tenure & Pricing**: `tenure_months`, `monthly_charge`, `plan_type`
+- **Engagement**: `watch_hours_per_week`, `logins_last_30_days`, `last_login_days_ago`
+- **Friction**: `payment_failures_3m`, `support_tickets`
+- **Account & Device**: `age`, `num_profiles`, `device_type`, `preferred_genre`, `payment_method`
+- **Excluded Features (Leakage/Identifier)**: `customer_id`, `name`, `email` (identifiers), and `churn`, `churn_probability`, `clv_score`, `clv_segment` (target leakage).
+
+### 4. Preprocessing Pipeline
+- **Imputation**: Median imputation for numerical features; most frequent strategy for categorical features.
+- **Encoding**: Ordinal encoding for `plan_type` (`Basic: 0`, `Standard: 1`, `Premium: 2`) preserving hierarchy; One-Hot Encoding (`handle_unknown='ignore'`) for nominal categories.
+- **Scaling**: `StandardScaler` standardizes all continuous and ordinal features to zero mean and unit variance ($z = \frac{x - \mu}{\sigma}$). This prevents high-magnitude features (like `monthly_charge` ₹199–₹799) from overwhelming small-magnitude features (like `payment_failures_3m` 0–4).
+- **Persistence**: Fitted pipeline and model are serialized with `joblib` (`similarity_pipeline.joblib`, `customer_similarity_model.joblib`).
+
+### 5. Similarity Score Calculation
+- **Metric**: Euclidean distance ($d$) in standardized multidimensional space:
+  $$d(u, v) = \sqrt{\sum_{i=1}^n (u_i - v_i)^2}$$
+- **Normalized Similarity Percentage**:
+  $$\text{similarity} = \frac{1}{1 + d} \times 100\%$$
+- **Properties**:
+  - $d = 0 \implies 100\%$ (identical profile).
+  - As $d$ increases, similarity smoothly decreases toward $0\%$.
+  - Strictly bounded in $(0, 100\%]$.
+  - **Important**: This is a geometric distance-derived similarity score, *not* a probability.
+
+### 6. API Endpoint: `POST /api/customer-similarity`
+**Request Body:**
+```json
+{
+  "customer_id": "CUST00001",
+  "n_neighbors": 5
+}
+```
+**Response:**
+```json
+{
+  "selected_customer": {
+    "customer_id": "CUST00001",
+    "name": "Warjas Bhalla",
+    "plan_type": "Standard",
+    "monthly_charge": 499,
+    "tenure_months": 28,
+    "watch_hours_per_week": 1.0,
+    "logins_last_30_days": 13,
+    "payment_failures_3m": 0,
+    "support_tickets": 0,
+    "churn_prob": 0.3223,
+    "risk_level": "LOW",
+    "historical_outcome": "Churned"
+  },
+  "similar_customers": [
+    {
+      "customer_id": "CUST00980",
+      "similarity_score": 45.7,
+      "distance": 1.1883,
+      "churn_prob": 0.4485,
+      "risk_level": "MEDIUM",
+      "historical_churn": 1,
+      "historical_outcome": "Churned",
+      "plan_type": "Standard",
+      "tenure_months": 24,
+      "monthly_charge": 499,
+      "watch_hours_per_week": 3.1,
+      "logins_last_30_days": 13
+    }
+  ],
+  "insights": [
+    "2 of the 5 most similar historical customers (40%) previously churned.",
+    "This customer watches 1.9 fewer hours/week than similar historical customers.",
+    "5 of the 5 nearest lookalikes share the exact same Standard subscription plan."
+  ]
+}
+```
+
+### 7. How to Run & Test
+```bash
+# 1. Run unit tests for similarity engine & KNN training
+python test_similarity_engine.py
+
+# 2. Run API integration tests (health check, similarity, regression)
+python test_api_endpoints.py
+
+# 3. Start backend API server
+uvicorn main:app --reload --port 8000
+
+# 4. In ChurnIQ-Frontend, build or launch dev server
+npm run build
+npm run dev
+```
 
 ##  Acknowledgements
 
