@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/churniq'
-import { ArrowLeft, Mail, Copy, Send, AlertTriangle, CheckCircle, Sliders } from 'lucide-react'
+import { ArrowLeft, Mail, Copy, Send, AlertTriangle, CheckCircle, Sliders, Users } from 'lucide-react'
 
 function RiskBadge({ level }) {
   const cls = level === 'HIGH' ? 'badge-high' : level === 'MEDIUM' ? 'badge-medium' : 'badge-low'
@@ -147,6 +147,10 @@ export default function CustomerDetail() {
       <button onClick={() => nav('/risk')}
         style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text2)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: 'fit-content' }}>
         <ArrowLeft size={14} /> Back to Risk Table
+      </button>
+      <button onClick={() => nav('/similarity')}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--text)', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', float: 'right' }}>
+        <Users size={14} /> Find Similar Customers
       </button>
 
       {/* Profile + Gauge */}

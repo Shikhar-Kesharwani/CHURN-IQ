@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, Users, BarChart3, TrendingUp,
+  LayoutDashboard, Users, BarChart3, TrendingUp, UserCheck,
   Sun, Moon, ChevronLeft, ChevronRight, Zap
 } from 'lucide-react'
 import Dashboard      from './pages/Dashboard'
@@ -9,12 +9,14 @@ import RiskTable      from './pages/RiskTable'
 import CustomerDetail from './pages/CustomerDetail'
 import SegmentAnalysis from './pages/SegmentAnalysis'
 import ChurnPredict   from './pages/ChurnPredict'
+import CustomerSimilarity from './pages/CustomerSimilarity'
 
 const NAV = [
   { to: '/',         icon: LayoutDashboard, label: 'Dashboard'       },
   { to: '/risk',     icon: Users,           label: 'Risk Table'       },
   { to: '/segments', icon: BarChart3,       label: 'Segments'         },
-  { to: '/predict',  icon: TrendingUp,      label: 'Churn Predict'    },
+  { to: '/predict',    icon: TrendingUp,      label: 'Churn Predict'    },
+  { to: '/similarity', icon: UserCheck,       label: 'Similarity Finder' },
 ]
 
 function Sidebar({ collapsed, setCollapsed }) {
@@ -161,6 +163,7 @@ function Layout({ dark, setDark }) {
             <Route path="/risk/:id"   element={<CustomerDetail />} />
             <Route path="/segments"   element={<SegmentAnalysis />} />
             <Route path="/predict"    element={<ChurnPredict />} />
+            <Route path="/similarity" element={<CustomerSimilarity />} />
           </Routes>
         </main>
       </div>
