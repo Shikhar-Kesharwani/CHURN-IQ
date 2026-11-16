@@ -1,0 +1,6 @@
+{
+  "GMAIL_SENDER": "churniq.demo@gmail.com",
+  "GMAIL_APP_PASS": "your_app_password_here",
+  "DEMO_RECEIVER": "demo@example.com",
+  "SPECIAL_CUST_ID": "CUST99999"
+}

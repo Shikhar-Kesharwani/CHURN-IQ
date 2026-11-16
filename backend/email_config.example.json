@@ -1,0 +1,6 @@
+{
+  "GMAIL_SENDER": "your_email@gmail.com",
+  "GMAIL_APP_PASS": "your_16_char_app_password",
+  "DEMO_RECEIVER": "your_test_email@gmail.com",
+  "SPECIAL_CUST_ID": "CUST99999"
+}
