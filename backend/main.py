@@ -237,20 +237,26 @@ from email.mime.multipart import MIMEMultipart
 # Agar galti se GitHub pe push ho gaya → credentials leak!
 # Isliye alag JSON file mein rakha — .gitignore se protected
  
-try:
-    with open('email_config.json') as f:
-        _cfg = json.load(f)
-    GMAIL_SENDER   = _cfg['GMAIL_SENDER']
-    GMAIL_APP_PASS = _cfg['GMAIL_APP_PASS']
-    DEMO_RECEIVER  = _cfg['DEMO_RECEIVER']
-    EMAIL_ENABLED  = True
+# Load Gmail config from environment variables (SECURE) or fallback to local email_config.json
+GMAIL_SENDER   = os.environ.get('GMAIL_SENDER', '')
+GMAIL_APP_PASS = os.environ.get('GMAIL_APP_PASS', '')
+DEMO_RECEIVER  = os.environ.get('DEMO_RECEIVER', '')
+
+if not (GMAIL_SENDER and GMAIL_APP_PASS):
+    try:
+        with open('email_config.json') as f:
+            _cfg = json.load(f)
+        GMAIL_SENDER   = GMAIL_SENDER or _cfg.get('GMAIL_SENDER', '')
+        GMAIL_APP_PASS = GMAIL_APP_PASS or _cfg.get('GMAIL_APP_PASS', '')
+        DEMO_RECEIVER  = DEMO_RECEIVER or _cfg.get('DEMO_RECEIVER', '')
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        pass
+
+EMAIL_ENABLED = bool(GMAIL_SENDER and GMAIL_APP_PASS)
+if EMAIL_ENABLED:
     print("  ✓ Gmail config loaded (email sending enabled)")
-except FileNotFoundError:
-    GMAIL_SENDER   = ""
-    GMAIL_APP_PASS = ""
-    DEMO_RECEIVER  = ""
-    EMAIL_ENABLED  = False
-    print("  ⚠ email_config.json nahi mila — run add_emails.py first")
+else:
+    print("  ⚠ Gmail not configured — set GMAIL_SENDER and GMAIL_APP_PASS env variables")
 # =============================================================================
 #   FASTAPI APP INITIALIZATION
 # =============================================================================
