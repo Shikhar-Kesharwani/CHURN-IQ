@@ -195,9 +195,9 @@ print("  ✓ Customer Similarity Engine ready")
 #   Takes 2 minutes — no credit card required
 #   Or set as environment variable: export GEMINI_API_KEY="your_key_here"
 # ─────────────────────────────────────────────────────────────────────────────
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
-if GEMINI_API_KEY:
+if GEMINI_API_KEY and GEMINI_API_KEY != "YOUR_GEMINI_API_KEY":
     genai.configure(api_key=GEMINI_API_KEY)
     GEMINI_MODEL   = genai.GenerativeModel("gemini-2.5-flash")
     GEMINI_ENABLED = True
@@ -205,7 +205,7 @@ if GEMINI_API_KEY:
 else:
     GEMINI_ENABLED = False
     print("  ⚠ Gemini API key not set — /retention endpoint uses rule-based fallback")
-    print("    Set key: export GEMINI_API_KEY='your_key' or edit line above")
+    print("    Set key: export GEMINI_API_KEY='your_key'")
 
 print("\n" + "=" * 60)
 print("  Startup complete! All systems ready.")
