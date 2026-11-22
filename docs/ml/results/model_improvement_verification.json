@@ -1,0 +1,96 @@
+{
+  "delong_original_split": {
+    "vs_retrained_baseline": {
+      "auc_gain": 0.0342,
+      "z": 4.12,
+      "p_value": 3.7491015140577984e-05,
+      "bonferroni_alpha": 0.0083,
+      "significant_after_bonferroni": true
+    },
+    "vs_committed_artifact": {
+      "auc_gain": 0.0413,
+      "z": 5.06,
+      "p_value": 4.1201138684037325e-07,
+      "bonferroni_alpha": 0.0083,
+      "significant_after_bonferroni": true
+    }
+  },
+  "fresh_splits": {
+    "per_split": [
+      {
+        "split_seed": 1,
+        "baseline_auc": 0.7587,
+        "regularised_auc": 0.7758,
+        "gain": 0.0172
+      },
+      {
+        "split_seed": 2,
+        "baseline_auc": 0.7543,
+        "regularised_auc": 0.7787,
+        "gain": 0.0244
+      },
+      {
+        "split_seed": 3,
+        "baseline_auc": 0.7318,
+        "regularised_auc": 0.753,
+        "gain": 0.0213
+      },
+      {
+        "split_seed": 4,
+        "baseline_auc": 0.7238,
+        "regularised_auc": 0.7493,
+        "gain": 0.0256
+      },
+      {
+        "split_seed": 5,
+        "baseline_auc": 0.7498,
+        "regularised_auc": 0.7764,
+        "gain": 0.0265
+      },
+      {
+        "split_seed": 6,
+        "baseline_auc": 0.7266,
+        "regularised_auc": 0.7515,
+        "gain": 0.0249
+      },
+      {
+        "split_seed": 7,
+        "baseline_auc": 0.754,
+        "regularised_auc": 0.7876,
+        "gain": 0.0335
+      },
+      {
+        "split_seed": 8,
+        "baseline_auc": 0.779,
+        "regularised_auc": 0.8057,
+        "gain": 0.0267
+      },
+      {
+        "split_seed": 9,
+        "baseline_auc": 0.741,
+        "regularised_auc": 0.7581,
+        "gain": 0.0171
+      },
+      {
+        "split_seed": 10,
+        "baseline_auc": 0.7423,
+        "regularised_auc": 0.7639,
+        "gain": 0.0216
+      }
+    ],
+    "mean_gain": 0.0239,
+    "sd_gain": 0.0049,
+    "min_gain": 0.0171,
+    "max_gain": 0.0335,
+    "regularised_wins": 10,
+    "sign_test_p": 0.001953125
+  },
+  "repeated_cv_5x3_seed7": {
+    "baseline_mean": 0.7454,
+    "baseline_sd": 0.0144,
+    "regularised_mean": 0.7747,
+    "regularised_sd": 0.0166,
+    "regularised_better_folds": 15,
+    "folds": 15
+  }
+}

@@ -10,7 +10,9 @@ Validation of the churn model, its explanations and the CLV logic. Covers Jira S
 | CHURN-16 Verify CLV calculation and tiers | [04-clv-verification.md](04-clv-verification.md) | `backend/churniq_core.py` | `tests/test_clv.py` |
 | CHURN-17 Model improvement research | [05-model-improvement-research.md](05-model-improvement-research.md) | `backend/model_experiments.py` | `tests/test_model_improvement.py` |
 
-Machine-readable results are in [`results/`](results/): `evaluation_results.json`, `shap_validation.json` and `model_experiments.json`.
+| Follow-up audit (CHURN-16 bugs, re-verification, Git audit) | [06-followup-audit.md](06-followup-audit.md) | `backend/verify_model_improvement.py` | — |
+
+Machine-readable results are in [`results/`](results/): `evaluation_results.json`, `shap_validation.json`, `model_experiments.json` and `model_improvement_verification.json`.
 
 ## Headline findings
 
@@ -47,7 +49,7 @@ python model_experiments.py
 python churniq_ml_pipeline.py --output-dir pipeline_outputs --model-config baseline
 ```
 
-- `python -m pytest` runs the 71-test ML validation suite (about 15 s).
+- `python -m pytest` runs the ML validation suite (about 15 s).
 - `evaluate_model.py` (CHURN-14), `validate_shap.py` (CHURN-15) and `model_experiments.py` (CHURN-17, about 40 s) each regenerate their file in `docs/ml/results/`.
 - The last command retrains the model into a scratch folder. It never overwrites the committed files unless you pass `--output-dir .`.
 
@@ -57,7 +59,7 @@ The older script-style checks still run directly: `python test_api_endpoints.py`
 
 | Suite | Result |
 |---|---|
-| `python -m pytest` (new ML suite) | **71 passed**, 0 failed |
+| `python -m pytest` (new ML suite) | **72 passed**, 0 failed, 4 xfailed (open Bugs A/B, `tests/test_known_issues.py`) |
 | `python test_api_endpoints.py` (existing) | passed |
 | `python test_similarity_engine.py` (existing, run in a copy of `backend/`) | passed |
 | Regression check: the bug-specific tests run against the original `main.py` | 5 failed (as expected, proving the tests detect the bugs) |
@@ -68,7 +70,7 @@ Environment: Python 3.13, Linux. Pinned versions from `requirements.txt` (numpy 
 ## Open issues requiring a team decision
 
 1. Whether to adopt the `regularised` model for production. That means regenerating the committed artifacts and re-adding the demo customer (CHURN-17, rec. 1).
-2. Out-of-fold scoring for the 4,000 customers with no prediction, who currently show 0% risk and CLV ₹0 (CHURN-16).
+2. Out-of-fold scoring for the 4,000 customers with no prediction, who currently show 0% risk and CLV ₹0, and who get HTTP 500 from `/whatif` and `/retention` (CHURN-16; draft Bug A in `06`). The demo customer's hard-coded CLV and hand-written reasons are draft Bug B.
 3. The operating threshold for "flag for retention", based on business costs (CHURN-17, rec. 3).
 4. Confirming the CLV business assumptions: past vs remaining tenure, the 6-month floor, and the ₹3k/₹8k tiers (CHURN-16).
-5. The committed model can't be reproduced bit-for-bit. This is probably platform-dependent and unconfirmed (CHURN-13).
+5. The committed model can't be reproduced bit-for-bit. Its booster records `seed: 0`, not the pipeline's 42, so its exact training provenance is unknown (CHURN-13; see `06` §6).

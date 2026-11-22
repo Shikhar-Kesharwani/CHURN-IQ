@@ -96,7 +96,7 @@ Retraining with the pinned versions (Linux, XGBoost 2.1.4, scikit-learn 1.6.1) g
 - the imbalanced-learn version: 0.12.4, 0.13.0 and 0.14.2 all give the same result;
 - float vs integer SMOTE input: the committed model's split thresholds are integers, which matches integer SMOTE output.
 
-The remaining likely cause is XGBoost's row/column subsampling RNG differing by platform. The codebase has Windows-specific handling, so the model may have been trained on Windows. **This is unconfirmed.**
+~~The remaining likely cause is XGBoost's row/column subsampling RNG differing by platform.~~ **Updated by the follow-up audit (`06-followup-audit.md` §6):** the committed booster's config records `seed: 0`, while the pipeline sets `random_state=42`. In this environment that always records `seed: 42`, even after a pickle round-trip. So the artifact wasn't produced by this pipeline code exactly as it runs here. Retraining with seed 0 doesn't reproduce it either, so the seed isn't the only difference. A platform difference alone wouldn't explain the recorded seed. **How the artifact was produced remains unconfirmed.**
 
 **Mitigation:** evaluation uses the committed artifact (`evaluate_model.py`) rather than a retrain. CHURN-17 compares candidates against a baseline retrained in the same environment.
 

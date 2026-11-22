@@ -88,6 +88,16 @@ Lowering the threshold to about 0.32 lets model F catch **80% of churners instea
 - `backend/model_experiments.py` runs the full experiment.
 - `backend/tests/test_model_improvement.py` guards the baseline vs regularised comparison and the recorded results.
 
+## Independent re-verification (follow-up audit)
+
+These tests weren't used to select the model (`python verify_model_improvement.py`; details in `06-followup-audit.md` §5):
+
+- **DeLong test** on the original split: p = 3.7×10⁻⁵ vs the retrained baseline and p = 4.1×10⁻⁷ vs the committed artifact. Both remain significant after Bonferroni correction for 6 comparisons.
+- **10 fresh train/test splits:** the regularised model wins on **10/10**. The mean gain is **+0.024 AUC** (sd 0.005, range +0.017 to +0.034).
+- **Repeated 5×3 CV:** better in 15/15 folds.
+
+**The +0.034 measured on the original split is at the upper end; plan on about +0.024.**
+
 ## Limitations
 
 - **Synthetic data:** the generator is an additive score with thresholds, which shallow trees model well. Gains may differ on real data.

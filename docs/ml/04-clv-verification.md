@@ -63,6 +63,12 @@ The small differences, at most ₹2.6, come from the API showing `churn_prob` ro
 
 ### Open — needs a team decision (not changed here)
 
+> **Follow-up audit (`06-followup-audit.md` §1–3):**
+> - The root cause is confirmed: the unscored customers are exactly the training split.
+> - The impact is larger than "₹0 CLV". For all 4,000 of them, `/whatif` and `/retention` return HTTP 500, and every `/customers?plan_type=` filter returns 500. These are pre-existing on `origin/main`.
+> - The demo row's SHAP reasons are hand-written, not computed.
+> - Draft Bug descriptions (A and B) and the proposed fixes are in that document.
+
 1. **4,000 of 5,001 customers have no model prediction.** The pipeline scores only the 20% test split. For everyone else, `GET /customer/{id}` returns `churn_prob 0.0`, risk `LOW`, CLV **₹0** and tier `Low`. That's misleading: by the formula, an unknown churn probability doesn't mean CLV = 0, and 0% risk isn't a prediction. `/segments.by_clv` keeps the dataset (oracle) tier for these customers.
    - **Proposed fix:** score every customer with out-of-fold predictions (5-fold CV, SMOTE inside folds) so that no customer is scored by a model that trained on them. Then regenerate `customer_predictions.csv`.
    - This changes every dashboard KPI, so the team should agree before it's done.
