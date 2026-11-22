@@ -15,6 +15,8 @@ import random
 import os
 import pickle
 
+import churniq_core
+
 # ─── Step 1: Tumse input lo (terminal mein — safe!) ──────────────────────────
 print("=" * 55)
 print("  ChurnIQ Pro — Demo Setup")
@@ -103,8 +105,11 @@ special_customer = {
     'payment_method':       'UPI',
     'payment_failures_3m':  3,           # Payment issues
     'support_tickets':      2,           # Support frustration
-    'clv_score':            500.0,
-    'clv_segment':          'Low',
+    # Bug B: CLV computed with the verified formula instead of a literal ₹500.
+    # 'churn_probability' is the generator-style "true" probability for this
+    # hand-made demo row; the API shows the MODEL's prediction (main.py).
+    'clv_score':            churniq_core.calc_clv(199, 2, 0.96),
+    'clv_segment':          churniq_core.get_clv_segment(churniq_core.calc_clv(199, 2, 0.96)),
     'churn_probability':    0.96,        # 96% churn risk!
     'churn':                1,
     'email':                your_email,  # TUMHARI REAL EMAIL

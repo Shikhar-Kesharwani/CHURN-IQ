@@ -195,6 +195,62 @@ print(f"\n  Merged dataset shape: {FULL_DF.shape}")
 FEATURE_MATRIX = churniq_core.encode_features(DATASET_DF, FEATURE_NAMES)
 FEATURE_MATRIX.index = DATASET_DF['customer_id'].values
 
+# ── Demo customers scored by the model, not hand-typed (Bug B) ───────────────
+# CUST99999 was appended by add_emails.py / fix_cust99999.py with a hand-set
+# churn probability (0.96), hard-coded CLV (₹500) and SHAP "reasons" copied
+# from an illustrative comment. At startup we replace those in-memory values
+# with the model's own prediction, real TreeExplainer SHAP reasons and the
+# verified CLV formula. The committed CSV files are not modified.
+DEMO_CUSTOMER_IDS = {'CUST99999'}
+
+
+def _score_demo_customers():
+    import shap
+    demo_ids = [c for c in DEMO_CUSTOMER_IDS if c in set(FULL_DF['customer_id'])]
+    if not demo_ids:
+        return
+    explainer = shap.TreeExplainer(MODEL)
+    for cid in demo_ids:
+        idx = FULL_DF.index[FULL_DF['customer_id'] == cid][0]
+        X = FEATURE_MATRIX.loc[[cid]]
+        prob = float(MODEL.predict_proba(X)[0][1])
+        reasons = churniq_core.get_top_shap_reasons(explainer.shap_values(X)[0], FEATURE_NAMES)
+        reasons += ['N/A'] * (3 - len(reasons))
+        clv = churniq_core.calc_clv(FULL_DF.at[idx, 'monthly_charge'], FULL_DF.at[idx, 'tenure_months'], prob)
+        FULL_DF.loc[idx, ['churn_prob', 'risk_level', 'clv_score', 'clv_segment',
+                          'top_reason_1', 'top_reason_2', 'top_reason_3']] = [
+            round(prob, 4), churniq_core.get_risk_level(prob), clv,
+            churniq_core.get_clv_segment(clv), *reasons]
+
+
+_score_demo_customers()
+
+# ── Unscored customers (Bug A, interim fix) ──────────────────────────────────
+# customer_predictions.csv only covers the 20% test split. The other customers
+# (the training split) have NO out-of-sample prediction. They must not be shown
+# as 0 % risk / ₹0 CLV, and must not inherit the generator's true-probability
+# tier. They are reported as NOT_SCORED / Unknown until out-of-fold
+# predictions are generated (see docs/ml/06-followup-audit.md).
+NOT_SCORED        = 'NOT_SCORED'
+NOT_SCORED_TEXT   = 'Not scored'
+NOT_SCORED_REASON = 'Not scored — no out-of-sample model prediction is available for this customer'
+FULL_DF.loc[FULL_DF['churn_prob'].isna(), 'clv_segment'] = 'Unknown'
+SCORED_COUNT   = int(FULL_DF['churn_prob'].notna().sum())
+UNSCORED_COUNT = int(FULL_DF['churn_prob'].isna().sum())
+print(f"  ✓ {SCORED_COUNT} customers scored, {UNSCORED_COUNT} not scored")
+
+
+def model_prob(row):
+    """The model's churn probability for a FULL_DF row, or None if not scored."""
+    v = row.get('churn_prob')
+    return None if v is None or pd.isna(v) else float(v)
+
+
+def _json_safe(records):
+    """Replace NaN/inf in list-of-dict records with None (JSON has no NaN)."""
+    return [{k: (None if isinstance(v, float) and not np.isfinite(v) else v)
+             for k, v in r.items()} for r in records]
+
 # ── Load/Initialize Customer Similarity Engine (KNN) ─────────────────────────
 print("\n[5/5] Loading Customer Similarity Engine (KNN)...")
 SIMILARITY_ENGINE = CustomerSimilarityEngine(data_df=DATASET_DF)
@@ -390,7 +446,7 @@ class SimilarCustomerDetail(BaseModel):
     similarity_explanation: str
     historical_churn: Optional[int] = None
     historical_outcome: str
-    churn_prob: float
+    churn_prob: Optional[float] = None   # None = not scored by the model (Bug A)
     churn_percent: str
     risk_level: str
     plan_type: str
@@ -648,20 +704,23 @@ def get_customers(
     # Smaller response = faster API = better UX
     customers = []
     for _, row in df.iterrows():
-        churn_prob = float(row.get('churn_prob', 0) or 0)
-        clv        = float(row.get('clv_score', 0) or 0)
+        churn_prob = model_prob(row)
+        scored     = churn_prob is not None
+        clv        = float(row['clv_score']) if scored else None
         customers.append({
             "customer_id":    str(row.get('customer_id', '')),
             "name":           str(row.get('name', '')),
             "plan_type":      str(row.get('plan_type', '')),
             "monthly_charge": int(row.get('monthly_charge', 0)),
             "tenure_months":  int(row.get('tenure_months', 0)),
-            "churn_prob":     round(churn_prob, 4),
-            "churn_percent":  f"{churn_prob * 100:.1f}%",
-            "risk_level":     str(row.get('risk_level', 'LOW')),
-            "clv_score":      round(clv, 2),
+            "scored":         scored,
+            "churn_prob":     round(churn_prob, 4) if scored else None,
+            "churn_percent":  f"{churn_prob * 100:.1f}%" if scored else NOT_SCORED_TEXT,
+            "risk_level":     str(row['risk_level']) if scored else NOT_SCORED,
+            "clv_score":      round(clv, 2) if scored else None,
             "clv_segment":    get_clv_segment(clv),
-            "top_reason_1":   explain_reason(str(row.get('customer_id', '')), row.get('top_reason_1', '')),
+            "top_reason_1":   (explain_reason(str(row.get('customer_id', '')), row.get('top_reason_1', ''))
+                               if scored else NOT_SCORED_REASON),
             "device_type":    str(row.get('device_type', '')),
             "watch_hours":    round(float(row.get('watch_hours_per_week', 0) or 0), 1),
         })
@@ -676,9 +735,12 @@ def get_customers(
         "high_risk_count":          int(len(high_risk)),
         "medium_risk_count":        int(len(all_df[all_df['risk_level'] == 'MEDIUM'])),
         "low_risk_count":           int(len(all_df[all_df['risk_level'] == 'LOW'])),
-        "avg_churn_probability":    round(float(all_df['churn_prob'].mean()), 4),
+        # high + medium + low + unscored == total_customers
+        "unscored_count":           UNSCORED_COUNT,
+        "scored_customers":         SCORED_COUNT,
+        "avg_churn_probability":    round(float(all_df['churn_prob'].mean()), 4),   # scored only
         "avg_churn_percent":        f"{float(all_df['churn_prob'].mean()) * 100:.1f}%",
-        "revenue_at_risk_monthly":  round(float(rev_risk), 2),
+        "revenue_at_risk_monthly":  round(float(rev_risk), 2),                      # scored only
         "revenue_at_risk_formatted": f"₹{float(rev_risk):,.0f}",
     }
 
@@ -726,19 +788,21 @@ def get_customer_detail(customer_id: str):
         )
 
     row        = row.iloc[0]
-    import math
-    cp = row.get('churn_prob', 0)
-    churn_prob = 0.0 if (cp is None or (isinstance(cp, float) and math.isnan(cp))) else float(cp)
+    cid        = str(row['customer_id'])
+    # Bug A: unscored customers are reported as NOT_SCORED, never as 0 % / ₹0.
+    # Bug B: the CUST99999 hard-coded override (churn 0.96, CLV ₹500) was
+    # removed; demo customers are scored by the model at startup.
+    churn_prob = model_prob(row)
+    scored     = churn_prob is not None
+    clv        = float(row['clv_score']) if scored else None
 
-    cv = row.get('clv_score', 0)
-    clv = 0.0 if (cv is None or (isinstance(cv, float) and math.isnan(cv))) else float(cv)
-
-    # CUST99999 ke liye manually set karo
-    if str(row.get('customer_id','')) == 'CUST99999':
-        churn_prob = float(row.get('churn_probability', 0.96) or 0.96)
-        clv = 500.0
+    def reason(k):
+        return explain_reason(cid, row.get(f'top_reason_{k}', '')) if scored else NOT_SCORED_REASON
 
     return {
+        "scored":            scored,
+        "prediction_source": (('demo_live_model' if cid in DEMO_CUSTOMER_IDS else 'holdout_test')
+                              if scored else None),
         # ── Identity ────────────────────────────────
         "customer_id":    str(row['customer_id']),
         "name":           str(row.get('name', '')),
@@ -764,28 +828,28 @@ def get_customer_detail(customer_id: str):
         "preferred_genre":       str(row.get('preferred_genre', '')),
 
         # ── ML Predictions ──────────────────────────
-        "churn_prob":     round(churn_prob, 4),
-        "churn_percent":  f"{churn_prob * 100:.1f}%",
-        "risk_level":     get_risk_level(churn_prob),
+        "churn_prob":     round(churn_prob, 4) if scored else None,
+        "churn_percent":  f"{churn_prob * 100:.1f}%" if scored else NOT_SCORED_TEXT,
+        "risk_level":     get_risk_level(churn_prob) if scored else NOT_SCORED,
 
         # ── SHAP Reasons (plain English) ─────────────
         # These are pre-computed by the ML pipeline
         # On the frontend: display as colored reason cards
         # In the Gemini prompt: sent as context for email generation
-        "top_reason_1":   explain_reason(str(row['customer_id']), row.get('top_reason_1', '')),
-        "top_reason_2":   explain_reason(str(row['customer_id']), row.get('top_reason_2', '')),
-        "top_reason_3":   explain_reason(str(row['customer_id']), row.get('top_reason_3', '')),
+        "top_reason_1":   reason(1),
+        "top_reason_2":   reason(2),
+        "top_reason_3":   reason(3),
 
         # ── CLV ──────────────────────────────────────
         # Shows business team HOW MUCH this customer is worth
         # Helps prioritize: High CLV + High Risk = act immediately
-        "clv_score":    round(clv, 2),
+        "clv_score":    round(clv, 2) if scored else None,
         "clv_segment":  get_clv_segment(clv),
-        "clv_formatted": f"₹{clv:,.0f}",
+        "clv_formatted": f"₹{clv:,.0f}" if scored else 'N/A',
         "clv_breakdown": {
             "monthly_charge":   int(row.get('monthly_charge', 0)),
             "tenure_months":    int(row.get('tenure_months', 0)),
-            "retention_factor": round(1 - churn_prob, 4),
+            "retention_factor": round(1 - churn_prob, 4) if scored else None,
             "formula":          "monthly_charge × max(tenure, 6) × (1 − churn_probability)",
         },
     }
@@ -832,7 +896,15 @@ def what_if_simulation(request: WhatIfRequest):
             detail=f"Customer '{request.customer_id}' not found"
         )
 
-    original_prob = float(row.iloc[0]['churn_prob'] or 0)
+    original_prob = model_prob(row.iloc[0])
+    if original_prob is None:
+        # Bug A: previously NaN → HTTP 500. There is no out-of-sample baseline
+        # prediction to compare against, so the what-if comparison is unavailable.
+        raise HTTPException(
+            status_code=409,
+            detail=f"Customer '{request.customer_id}' has no out-of-sample churn prediction "
+                   f"(not scored by the model), so a what-if comparison is unavailable."
+        )
     customer_data = row.iloc[0].to_dict()
 
     # Apply overrides — only change what was explicitly sent
@@ -956,6 +1028,14 @@ def get_retention_strategy(customer_id: str):
         raise HTTPException(status_code=404, detail=f"Customer '{customer_id}' not found")
 
     row = row.iloc[0]
+    if model_prob(row) is None:
+        # Bug A: previously NaN → HTTP 500. Without a model prediction there are
+        # no SHAP churn reasons to base a retention strategy on.
+        raise HTTPException(
+            status_code=409,
+            detail=f"Customer '{customer_id}' has no out-of-sample churn prediction "
+                   f"(not scored by the model), so no SHAP-based retention strategy can be generated."
+        )
 
     # Extract customer context for prompt
     name        = str(row.get('name', 'Valued Customer')).split()[0]   # First name only
@@ -1191,8 +1271,9 @@ def send_retention_email(request: SendEmailRequest):
     r          = row.iloc[0]
     cust_name  = str(r.get('name', 'Unknown'))
     plan       = str(r.get('plan_type', ''))
-    churn_pct  = round(float(r.get('churn_prob', 0) or 0) * 100, 1)
-    clv        = round(float(r.get('clv_score', 0) or 0), 0)
+    _p         = model_prob(r)
+    churn_pct  = round(_p * 100, 1) if _p is not None else 'N/A'
+    clv        = round(float(r['clv_score']), 0) if _p is not None else 0
  
     try:
         # ── Build Email ───────────────────────────────────────
@@ -1411,14 +1492,16 @@ def get_segment_analysis():
     ]
 
     return {
-        "by_plan":         plan_grp.to_dict(orient='records'),
-        "by_device":       device_grp.to_dict(orient='records'),
-        "by_tenure":       tenure_grp.to_dict(orient='records'),
-        "by_genre":        genre_grp.to_dict(orient='records'),
-        "by_clv":          clv_grp.to_dict(orient='records'),
+        "by_plan":         _json_safe(plan_grp.to_dict(orient='records')),
+        "by_device":       _json_safe(device_grp.to_dict(orient='records')),
+        "by_tenure":       _json_safe(tenure_grp.to_dict(orient='records')),
+        "by_genre":        _json_safe(genre_grp.to_dict(orient='records')),
+        "by_clv":          _json_safe(clv_grp.to_dict(orient='records')),
         "monthly_trend":   trend,
         "overall": {
             "total_customers":       int(len(df)),
+            "scored_customers":      SCORED_COUNT,     # rates/averages use scored customers only
+            "unscored_count":        UNSCORED_COUNT,   # shown as clv_segment 'Unknown' in by_clv
             "avg_churn_rate_pct":    round(base_rate, 1),
             "total_revenue_at_risk": round(float(
                 (df['monthly_charge'] * df['churn_prob']).sum()
@@ -1454,7 +1537,12 @@ def get_dashboard_summary():
             "high_risk_count":            int(len(high_risk)),
             "medium_risk_count":          int(len(med_risk)),
             "low_risk_count":             int(len(low_risk)),
-            "high_risk_pct":              round(len(high_risk) / len(df) * 100, 1),
+            # high + medium + low + unscored == total_customers
+            "unscored_count":             UNSCORED_COUNT,
+            "scored_customers":           SCORED_COUNT,
+            # share of SCORED customers (previously divided by all 5,001,
+            # 80 % of whom have no prediction)
+            "high_risk_pct":              round(len(high_risk) / SCORED_COUNT * 100, 1),
             "avg_churn_probability":      round(float(df['churn_prob'].mean()), 4),
             "avg_churn_percent":          f"{float(df['churn_prob'].mean()) * 100:.1f}%",
             "revenue_at_risk_monthly":    round(rev_risk, 2),

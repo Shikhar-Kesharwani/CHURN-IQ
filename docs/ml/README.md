@@ -59,7 +59,8 @@ The older script-style checks still run directly: `python test_api_endpoints.py`
 
 | Suite | Result |
 |---|---|
-| `python -m pytest` (new ML suite) | **72 passed**, 0 failed, 4 xfailed (open Bugs A/B, `tests/test_known_issues.py`) |
+| `python -m pytest` (new ML suite) | **85 passed**, 0 failed, 1 xfailed (Bug A full fix pending, `tests/test_unscored_and_demo_customers.py`) |
+| `npm run build` (frontend) | builds successfully (only the existing chunk-size advisory) |
 | `python test_api_endpoints.py` (existing) | passed |
 | `python test_similarity_engine.py` (existing, run in a copy of `backend/`) | passed |
 | Regression check: the bug-specific tests run against the original `main.py` | 5 failed (as expected, proving the tests detect the bugs) |
@@ -70,7 +71,7 @@ Environment: Python 3.13, Linux. Pinned versions from `requirements.txt` (numpy 
 ## Open issues requiring a team decision
 
 1. Whether to adopt the `regularised` model for production. That means regenerating the committed artifacts and re-adding the demo customer (CHURN-17, rec. 1).
-2. Out-of-fold scoring for the 4,000 customers with no prediction, who currently show 0% risk and CLV ₹0, and who get HTTP 500 from `/whatif` and `/retention` (CHURN-16; draft Bug A in `06`). The demo customer's hard-coded CLV and hand-written reasons are draft Bug B.
+2. Out-of-fold scoring for the 4,000 customers with no prediction (CHURN-16, Bug A full fix). The interim fix is in place: they're now reported as NOT_SCORED instead of 0 % / ₹0, and the HTTP 500s are gone. Bug B (the demo customer's hard-coded CLV and hand-written reasons) is fixed. See `06`.
 3. The operating threshold for "flag for retention", based on business costs (CHURN-17, rec. 3).
 4. Confirming the CLV business assumptions: past vs remaining tenure, the 6-month floor, and the ₹3k/₹8k tiers (CHURN-16).
 5. The committed model can't be reproduced bit-for-bit. Its booster records `seed: 0`, not the pipeline's 42, so its exact training provenance is unknown (CHURN-13; see `06` §6).

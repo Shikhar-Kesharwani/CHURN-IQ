@@ -261,22 +261,10 @@ class CustomerSimilarityEngine:
                 hist_churn_int = None
                 hist_outcome_str = "Unknown"
 
-            # Churn probability calculation / lookup
-            churn_prob = cand_row.get("churn_prob")
-            if pd.isna(churn_prob) or churn_prob is None:
-                # Try raw dataset churn_probability
-                churn_prob = cand_row.get("churn_probability")
-
-            if (pd.isna(churn_prob) or churn_prob is None) and xgboost_model and build_feature_row_fn:
-                try:
-                    feat_row = build_feature_row_fn(cand_row.to_dict())
-                    churn_prob = float(xgboost_model.predict_proba(feat_row)[0][1])
-                except Exception:
-                    churn_prob = 0.5
-
-            churn_prob = float(churn_prob) if (churn_prob is not None and not pd.isna(churn_prob)) else 0.0
-
-            risk_level = "HIGH" if churn_prob >= 0.70 else "MEDIUM" if churn_prob >= 0.40 else "LOW"
+            # Model churn probability (out-of-sample prediction) only — see
+            # _model_churn_prob for why there is no fallback.
+            churn_prob = self._model_churn_prob(cand_row)
+            churn_percent, risk_level = self._churn_display(churn_prob)
 
             similarity_pct = self.calculate_similarity_score(dist)
 
@@ -288,8 +276,8 @@ class CustomerSimilarityEngine:
                 "similarity_explanation": f"Distance-derived similarity: {similarity_pct}% based on Euclidean metric in normalized behavioral feature space.",
                 "historical_churn": hist_churn_int,
                 "historical_outcome": hist_outcome_str,
-                "churn_prob": round(churn_prob, 4),
-                "churn_percent": f"{churn_prob * 100:.1f}%",
+                "churn_prob": round(churn_prob, 4) if churn_prob is not None else None,
+                "churn_percent": churn_percent,
                 "risk_level": risk_level,
                 "plan_type": str(cand_row.get("plan_type", "Basic")),
                 "monthly_charge": int(cand_row.get("monthly_charge", 0)),
@@ -311,16 +299,8 @@ class CustomerSimilarityEngine:
                 break
 
         # Selected customer profile details
-        sel_churn_prob = selected_row.get("churn_prob")
-        if pd.isna(sel_churn_prob) or sel_churn_prob is None:
-            sel_churn_prob = selected_row.get("churn_probability")
-        if (pd.isna(sel_churn_prob) or sel_churn_prob is None) and xgboost_model and build_feature_row_fn:
-            try:
-                feat_row = build_feature_row_fn(selected_dict)
-                sel_churn_prob = float(xgboost_model.predict_proba(feat_row)[0][1])
-            except Exception:
-                sel_churn_prob = 0.5
-        sel_churn_prob = float(sel_churn_prob) if (sel_churn_prob is not None and not pd.isna(sel_churn_prob)) else 0.0
+        sel_churn_prob = self._model_churn_prob(selected_row)
+        sel_churn_percent, sel_risk_level = self._churn_display(sel_churn_prob)
 
         sel_hist_churn = selected_row.get("churn")
         sel_hist_outcome = (
@@ -343,9 +323,9 @@ class CustomerSimilarityEngine:
             "payment_method": str(selected_row.get("payment_method", "")),
             "num_profiles": int(selected_row.get("num_profiles", 1)),
             "age": int(selected_row.get("age", 0)),
-            "churn_prob": round(sel_churn_prob, 4),
-            "churn_percent": f"{sel_churn_prob * 100:.1f}%",
-            "risk_level": "HIGH" if sel_churn_prob >= 0.70 else "MEDIUM" if sel_churn_prob >= 0.40 else "LOW",
+            "churn_prob": round(sel_churn_prob, 4) if sel_churn_prob is not None else None,
+            "churn_percent": sel_churn_percent,
+            "risk_level": sel_risk_level,
             "historical_churn": int(sel_hist_churn) if pd.notna(sel_hist_churn) else None,
             "historical_outcome": sel_hist_outcome,
         }
@@ -359,6 +339,32 @@ class CustomerSimilarityEngine:
             "count": len(similar_customers),
             "insights": insights,
         }
+
+    @staticmethod
+    def _model_churn_prob(row) -> Optional[float]:
+        """
+        The XGBoost model's out-of-sample churn probability ('churn_prob'),
+        or None when the customer has not been scored.
+
+        No fallbacks (CHURN-16 audit, Bug A):
+          - 'churn_probability' is the data GENERATOR's true probability — an
+            oracle/leakage value, not a model prediction;
+          - live-scoring with the production model is in-sample for training
+            customers (AUC 0.958 vs 0.717 out-of-sample), i.e. over-confident;
+          - 0.5 / 0.0 defaults would be fabricated risk.
+        """
+        value = row.get("churn_prob")
+        if value is None or pd.isna(value):
+            return None
+        return float(value)
+
+    @staticmethod
+    def _churn_display(prob: Optional[float]):
+        """(churn_percent, risk_level) for display; NOT_SCORED when prob is None."""
+        if prob is None:
+            return "Not scored", "NOT_SCORED"
+        risk = "HIGH" if prob >= 0.70 else "MEDIUM" if prob >= 0.40 else "LOW"
+        return f"{prob * 100:.1f}%", risk
 
     def _generate_factual_insights(
         self,

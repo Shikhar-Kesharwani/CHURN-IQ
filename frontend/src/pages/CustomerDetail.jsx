@@ -4,15 +4,18 @@ import { api } from '../api/churniq'
 import { ArrowLeft, Mail, Copy, Send, AlertTriangle, CheckCircle, Sliders, Users } from 'lucide-react'
 
 function RiskBadge({ level }) {
-  const cls = level === 'HIGH' ? 'badge-high' : level === 'MEDIUM' ? 'badge-medium' : 'badge-low'
-  return <span className={cls}>{level}</span>
+  // NOT_SCORED = no out-of-sample model prediction (never shown as LOW)
+  const cls = level === 'HIGH' ? 'badge-high' : level === 'MEDIUM' ? 'badge-medium'
+            : level === 'LOW' ? 'badge-low' : 'badge-none'
+  return <span className={cls}>{level === 'NOT_SCORED' ? 'NOT SCORED' : level}</span>
 }
 
 function Gauge({ pct }) {
+  // pct === null → customer not scored by the model (no out-of-sample prediction)
   const r = 52, cx = 64, cy = 64
   const circ = 2 * Math.PI * r
-  const dash = (pct / 100) * circ
-  const color = pct >= 70 ? 'var(--red)' : pct >= 40 ? 'var(--yellow)' : 'var(--green)'
+  const dash = pct == null ? 0 : (pct / 100) * circ
+  const color = pct == null ? 'var(--text2)' : pct >= 70 ? 'var(--red)' : pct >= 40 ? 'var(--yellow)' : 'var(--green)'
   return (
     <svg width={128} height={128} viewBox="0 0 128 128">
       <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth={10} />
@@ -24,13 +27,24 @@ function Gauge({ pct }) {
       />
       <text x={cx} y={cy - 4} textAnchor="middle" dominantBaseline="middle"
         style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font)', fill: color }}>
-        {pct}%
+        {pct == null ? 'N/A' : `${pct}%`}
       </text>
       <text x={cx} y={cy + 18} textAnchor="middle"
         style={{ fontSize: 9, fontFamily: 'var(--font)', fill: 'var(--text2)' }}>
-        CHURN RISK
+        {pct == null ? 'NOT SCORED' : 'CHURN RISK'}
       </text>
     </svg>
+  )
+}
+
+function NotScoredNote({ what }) {
+  return (
+    <div style={{ marginTop: 14, padding: '8px 12px', borderRadius: 8, background: 'var(--bg2)', border: '1px dashed var(--border)', display: 'flex', gap: 6, alignItems: 'center' }}>
+      <AlertTriangle size={13} style={{ color: 'var(--text2)', flexShrink: 0 }} />
+      <p style={{ fontSize: 11, color: 'var(--text2)' }}>
+        {what} unavailable: this customer has no out-of-sample churn prediction (not scored by the model).
+      </p>
+    </div>
   )
 }
 
@@ -138,7 +152,8 @@ export default function CustomerDetail() {
     </div>
   )
 
-  const pct    = Math.round(customer.churn_prob * 100)
+  const scored = customer.churn_prob != null
+  const pct    = scored ? Math.round(customer.churn_prob * 100) : null
   const wiPct  = wiResult ? Math.round(wiResult.new_churn_prob * 100) : null
 
   return (
@@ -170,7 +185,7 @@ export default function CustomerDetail() {
                 { label: 'Charge',  value: `₹${customer.monthly_charge}/mo` },
                 { label: 'Tenure',  value: `${customer.tenure_months} months` },
                 { label: 'Device',  value: customer.device_type },
-                { label: 'CLV',     value: `₹${Number(customer.clv_score).toLocaleString()}` },
+                { label: 'CLV',     value: scored ? `₹${Number(customer.clv_score).toLocaleString()}` : 'N/A' },
                 { label: 'Segment', value: customer.clv_segment },
               ].map(({ label, value }) => (
                 <div key={label} style={{ textAlign: 'center' }}>
@@ -237,14 +252,16 @@ export default function CustomerDetail() {
             <Slider label="Tenure (months)" value={sliders.tenure_months ?? 12} min={1} max={72} hint=" mo"
               onChange={v => setSliders(s => ({ ...s, tenure_months: v }))} />
           </div>
-          <button onClick={runWhatIf} disabled={wiLoading}
+          {!scored && <NotScoredNote what="What-if comparison" />}
+          <button onClick={runWhatIf} disabled={wiLoading || !scored}
             style={{
               marginTop: 16, width: '100%', padding: '10px',
               borderRadius: 8, border: 'none',
               background: 'var(--accent)', color: 'var(--bg)',
-              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              fontSize: 13, fontWeight: 600,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              opacity: wiLoading ? 0.7 : 1,
+              opacity: wiLoading || !scored ? 0.5 : 1,
+              cursor: scored ? 'pointer' : 'not-allowed',
             }}>
             {wiLoading ? <div className="spinner" style={{ width: 14, height: 14, borderTopColor: 'var(--bg)' }} /> : 'Recalculate Churn'}
           </button>
@@ -349,16 +366,18 @@ export default function CustomerDetail() {
             </div>
           )}
 
-          <button onClick={generateEmail} disabled={emailLoading}
+          {!scored && <NotScoredNote what="AI retention email" />}
+          <button onClick={generateEmail} disabled={emailLoading || !scored}
             style={{
               marginTop: emailData ? 0 : 16,
               width: '100%', padding: '10px',
               borderRadius: 8, border: emailData ? '1px solid var(--border)' : 'none',
               background: emailData ? 'var(--bg2)' : 'var(--accent)',
               color: emailData ? 'var(--text)' : 'var(--bg)',
-              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              fontSize: 13, fontWeight: 600,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              opacity: emailLoading ? 0.7 : 1,
+              opacity: emailLoading || !scored ? 0.5 : 1,
+              cursor: scored ? 'pointer' : 'not-allowed',
             }}>
             <Mail size={14} />
             {emailData ? 'Regenerate Email' : 'Generate AI Email'}
