@@ -1,0 +1,6 @@
+churniq-frontend/
+*.png
+__pycache__/
+*.pyc
+email_config.json
+.env
