@@ -1,0 +1,10 @@
+# Development / training / test dependencies (not needed by the deployed API).
+# Install with:  pip install -r requirements-dev.txt
+# Versions are those used for the CHURN-13..17 validation (Python 3.13, Linux).
+-r requirements.txt
+imbalanced-learn==0.14.2   # SMOTE (churniq_ml_pipeline.py, model_experiments.py)
+Faker==40.63.0             # synthetic customer names (dataset generation)
+matplotlib==3.11.2         # pipeline plots
+seaborn==0.13.2            # pipeline plots
+pytest==9.2.0              # backend/tests
+httpx==0.28.1              # FastAPI TestClient

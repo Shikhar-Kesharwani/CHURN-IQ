@@ -30,7 +30,9 @@ ChurnIQ Pro goes beyond basic churn prediction — it tells you **WHO** will chu
 - **XGBoost** gradient boosting model trained on 5,000 OTT customers
 - **SMOTE** applied to handle class imbalance (training set only)
 - Predicts churn probability from 0–100% per customer
-- Achieves **ROC-AUC: 0.72** on held-out test set
+- Achieves **ROC-AUC: 0.72** on held-out test set (verified: 0.7167; accuracy 0.667, precision 0.623, recall 0.578, F1 0.599 — see [`docs/ml/02-model-evaluation.md`](../docs/ml/02-model-evaluation.md))
+- Preprocessing shared between training and the API in `churniq_core.py` (no training/serving skew)
+- ML validation reports for pipeline, evaluation, SHAP, CLV and model research: [`docs/ml/`](../docs/ml/README.md)
 
 ###  Explainable AI (SHAP)
 - **SHAP TreeExplainer** computes per-customer feature contributions
@@ -310,7 +312,12 @@ Only genuine behavioral and subscription features from the dataset are used:
 
 ### 7. How to Run & Test
 ```bash
+# 0. ML validation suite (pipeline, evaluation, SHAP, CLV, model research)
+pip install -r requirements-dev.txt
+python -m pytest
+
 # 1. Run unit tests for similarity engine & KNN training
+#    (note: rewrites the committed *.joblib similarity artifacts)
 python test_similarity_engine.py
 
 # 2. Run API integration tests (health check, similarity, regression)

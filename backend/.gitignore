@@ -15,3 +15,7 @@ email_config.json
 .vscode/
 .idea/
 *.png
+
+# ML pipeline outputs (python churniq_ml_pipeline.py)
+pipeline_outputs/
+.pytest_cache/
