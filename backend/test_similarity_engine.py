@@ -1,11 +1,14 @@
 import os
 import sys
+import tempfile
 import pandas as pd
 from customer_similarity import CustomerSimilarityEngine
 
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+
 def test_engine():
     print("=== Testing CustomerSimilarityEngine ===")
-    dataset_path = "ott_churn_dataset.csv"
+    dataset_path = os.path.join(BACKEND_DIR, "ott_churn_dataset.csv")
     if not os.path.exists(dataset_path):
         print(f"Error: {dataset_path} not found")
         sys.exit(1)
@@ -13,17 +16,21 @@ def test_engine():
     df = pd.read_csv(dataset_path)
     print(f"Loaded dataset with {len(df)} rows.")
 
-    engine = CustomerSimilarityEngine(data_df=df)
+    # CHURN-25: artifacts are written to a temporary directory. This test used
+    # to overwrite the committed similarity_*.joblib files in backend/.
+    artifacts_dir = tempfile.mkdtemp(prefix="churniq_sim_")
+    engine = CustomerSimilarityEngine(data_df=df, artifacts_dir=artifacts_dir)
     engine.fit(df)
     engine.save()
 
     print("Verifying artifacts exist on disk...")
     for f in ["customer_similarity_model.joblib", "similarity_pipeline.joblib", "similarity_metadata.joblib"]:
-        assert os.path.exists(f), f"Missing artifact {f}"
-        print(f"  Artifact {f}: {os.path.getsize(f)} bytes")
+        path = os.path.join(artifacts_dir, f)
+        assert os.path.exists(path), f"Missing artifact {f}"
+        print(f"  Artifact {f}: {os.path.getsize(path)} bytes")
 
     # Test loading from disk
-    loaded_engine = CustomerSimilarityEngine()
+    loaded_engine = CustomerSimilarityEngine(artifacts_dir=artifacts_dir)
     success = loaded_engine.load(data_df=df)
     assert success, "Engine failed to load from disk"
     print("Loaded engine successfully from disk.")
@@ -76,6 +83,37 @@ def test_engine():
         assert False, "Should have raised KeyError for invalid customer ID"
     except KeyError:
         print("\nVerified KeyError correctly raised for invalid customer ID.")
+
+    # ── CHURN-23 / CHURN-25 edge cases ──────────────────────────────────────
+    # Requested neighbour counts are respected, closest first, never self
+    for k in (1, 3, 10, 50):
+        res_k = loaded_engine.find_similar_customers(test_id, n_neighbors=k, full_df=df)
+        ids_k = [c["customer_id"] for c in res_k["similar_customers"]]
+        d_k = [c["distance"] for c in res_k["similar_customers"]]
+        assert res_k["count"] == len(ids_k) == k, f"k={k}: got {len(ids_k)}"
+        assert test_id not in ids_k and len(set(ids_k)) == k
+        assert d_k == sorted(d_k), f"k={k}: distances not ascending"
+    print("Verified neighbour counts 1/3/10/50, ordering and self-exclusion.")
+
+    # Invalid counts are rejected instead of silently returning 0 or 1 neighbours
+    for bad in (0, -1, 2.5, "5", None, True):
+        try:
+            loaded_engine.find_similar_customers(test_id, n_neighbors=bad, full_df=df)
+            assert False, f"n_neighbors={bad!r} should raise ValueError"
+        except ValueError:
+            pass
+    print("Verified invalid n_neighbors values raise ValueError.")
+
+    # k larger than the dataset returns every other customer
+    small = df.head(6)
+    tiny = CustomerSimilarityEngine(artifacts_dir=artifacts_dir).fit(small)
+    res_small = tiny.find_similar_customers(small["customer_id"].iloc[0], n_neighbors=50, full_df=small)
+    assert res_small["count"] == len(small) - 1, res_small["count"]
+    print("Verified k > dataset size returns all other customers.")
+
+    # Committed artifacts were not touched
+    for f in ["customer_similarity_model.joblib", "similarity_pipeline.joblib", "similarity_metadata.joblib"]:
+        assert os.path.exists(os.path.join(BACKEND_DIR, f)), f"Committed artifact {f} missing"
 
     print("\n✓ ALL CUSTOMER SIMILARITY ENGINE TESTS PASSED!")
 

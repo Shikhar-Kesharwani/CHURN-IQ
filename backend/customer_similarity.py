@@ -216,6 +216,10 @@ class CustomerSimilarityEngine:
         """
         if not self.is_fitted or self.knn_model is None or self.pipeline is None:
             raise ValueError("CustomerSimilarityEngine is not fitted or loaded.")
+        # CHURN-23: reject invalid counts instead of producing an empty or
+        # truncated list (n_neighbors=0 used to return 1 neighbour via break-check).
+        if isinstance(n_neighbors, bool) or not isinstance(n_neighbors, (int, np.integer)) or n_neighbors < 1:
+            raise ValueError(f"n_neighbors must be a positive integer, got {n_neighbors!r}")
 
         df_to_use = full_df if full_df is not None else self.data_df
         if df_to_use is None or df_to_use.empty:

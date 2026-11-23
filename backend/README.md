@@ -173,6 +173,8 @@ Part H → Predictions Table              (churn_prob + top 3 SHAP reasons)
 | POST | `/send-email` | Send retention email via Gmail |
 | GET | `/email-status` | Check email configuration |
 
+Validation rules, error format and test results: [`docs/api/README.md`](../docs/api/README.md).
+
 ---
 
 ##  Local Setup

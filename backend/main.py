@@ -56,8 +56,11 @@
 
 # FastAPI — the web framework that turns Python functions into REST API endpoints
 # Uvicorn — the ASGI server that runs FastAPI (async capable, much faster than Flask)
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Path, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # Pydantic — data validation library
 # CONCEPT: Pydantic models define the SHAPE of request/response data.
@@ -65,8 +68,8 @@ from fastapi.middleware.cors import CORSMiddleware
 #   - Automatically validate incoming JSON (wrong type = auto 422 error)
 #   - Generate API documentation at /docs
 #   - Serialize Python dicts to JSON responses
-from pydantic import BaseModel
-from typing import Optional, List
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
+from typing import Annotated, Any, Dict, List, Optional
 
 # Standard Python
 import pickle          # Deserialize saved .pkl model and feature names
@@ -77,6 +80,10 @@ import json
 import re
 import warnings
 import sys
+import html
+import logging
+import traceback
+import uuid
 if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -87,6 +94,17 @@ from customer_similarity import CustomerSimilarityEngine
 import churniq_core
 
 warnings.filterwarnings('ignore')
+
+# ── Logging (CHURN-21) ───────────────────────────────────────────────────────
+# Server-side diagnostics go to the 'churniq.api' logger. Clients only ever see
+# a short message, an error code and a request_id that matches the log line.
+logger = logging.getLogger("churniq.api")
+logger.setLevel(logging.INFO)
+if not logger.handlers and not logging.getLogger().handlers:
+    # Only our own logger gets a handler — global/library logging is untouched.
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logger.addHandler(_handler)
 
 # Google Gemini API — for AI-generated retention emails
 # CONCEPT: We use Gemini to translate ML/SHAP output into human-readable
@@ -136,18 +154,50 @@ def find_file(filename: str) -> str:
         f"Searched in: {candidates}"
     )
 
+class ArtifactLoadError(RuntimeError):
+    """A required model/data artifact is missing or unreadable (CHURN-21).
+
+    Raised at import time so the server refuses to start with a clear,
+    single-line reason instead of serving requests with a half-loaded model.
+    """
+
+
+def load_required_artifact(filename: str, loader, what: str):
+    """Locate and load a required startup artifact, failing with a clear message."""
+    try:
+        path = find_file(filename)
+    except FileNotFoundError as e:
+        logger.error("Startup failed: required artifact %s (%s) is missing. %s", filename, what, e)
+        raise ArtifactLoadError(
+            f"Required artifact '{filename}' ({what}) was not found. "
+            f"Run churniq_ml_pipeline.py / generate_predictions.py to create it."
+        ) from e
+    try:
+        return loader(path)
+    except Exception as e:
+        logger.error("Startup failed: could not load %s (%s) from %s: %s: %s",
+                     filename, what, path, type(e).__name__, e)
+        raise ArtifactLoadError(
+            f"Required artifact '{filename}' ({what}) could not be loaded "
+            f"({type(e).__name__}). Regenerate it with the ML pipeline."
+        ) from e
+
+
+def _load_pickle(path):
+    with open(path, 'rb') as f:
+        return pickle.load(f)
+
+
 # ── Load XGBoost Model ──────────────────────────────────────────────────────
 print("\n[1/4] Loading XGBoost model...")
-with open(find_file('churniq_model.pkl'), 'rb') as f:
-    MODEL = pickle.load(f)
+MODEL = load_required_artifact('churniq_model.pkl', _load_pickle, 'production XGBoost model')
 print("  ✓ Model loaded")
 
 # ── Load Feature Names ──────────────────────────────────────────────────────
 # CRITICAL: Feature names define the exact order and set of columns
 # the model expects. ANY mismatch = wrong predictions.
 print("[2/4] Loading feature names...")
-with open(find_file('feature_names.pkl'), 'rb') as f:
-    FEATURE_NAMES = pickle.load(f)
+FEATURE_NAMES = load_required_artifact('feature_names.pkl', _load_pickle, 'model feature order')
 print(f"  ✓ {len(FEATURE_NAMES)} feature names loaded")
 
 # ── Load Predictions CSV ─────────────────────────────────────────────────────
@@ -155,13 +205,14 @@ print(f"  ✓ {len(FEATURE_NAMES)} feature names loaded")
 # We load this so /customers and /customer/{id} endpoints are FAST
 # (no live SHAP computation needed — that's already done)
 print("[3/4] Loading predictions...")
-PREDICTIONS_DF = pd.read_csv(find_file('customer_predictions.csv'))
+PREDICTIONS_DF = load_required_artifact('customer_predictions.csv', pd.read_csv,
+                                        'pre-computed customer predictions')
 print(f"  ✓ {len(PREDICTIONS_DF)} customer predictions loaded")
 
 # ── Load Raw Dataset ──────────────────────────────────────────────────────────
 # Needed for: customer profiles, segment analysis, what-if defaults
 print("[4/4] Loading raw dataset...")
-DATASET_DF = pd.read_csv(find_file('ott_churn_dataset.csv'))
+DATASET_DF = load_required_artifact('ott_churn_dataset.csv', pd.read_csv, 'customer dataset')
 print(f"  ✓ {len(DATASET_DF)} customers loaded")
 
 # ── Merge Predictions into Dataset ──────────────────────────────────────────
@@ -205,11 +256,21 @@ FOLD_MODELS = None
 try:
     with open(find_file('oof_fold_models.pkl'), 'rb') as f:
         _oof = pickle.load(f)
-    assert list(_oof['feature_names']) == list(FEATURE_NAMES), 'fold model feature mismatch'
+    # CHURN-21: an explicit check (not `assert`, which `python -O` strips).
+    # A mismatched bundle disables out-of-fold what-if; it is NEVER replaced
+    # by the production MODEL, which is in-sample for these customers.
+    if list(_oof['feature_names']) != list(FEATURE_NAMES):
+        raise ValueError('fold model feature names do not match feature_names.pkl')
     FOLD_MODELS = _oof['models']
     print(f"  ✓ {len(FOLD_MODELS)} out-of-fold models loaded")
 except FileNotFoundError:
     print("  ⚠ oof_fold_models.pkl not found — what-if unavailable for out-of-fold customers")
+    logger.warning("oof_fold_models.pkl not found — /whatif returns 409 for out-of-fold customers")
+except Exception as e:
+    FOLD_MODELS = None
+    print("  ⚠ oof_fold_models.pkl could not be used — what-if unavailable for out-of-fold customers")
+    logger.error("oof_fold_models.pkl unusable (%s: %s) — /whatif returns 409 for "
+                 "out-of-fold customers", type(e).__name__, e)
 
 
 def model_for(row):
@@ -242,6 +303,12 @@ def model_prob(row):
     return None if v is None or pd.isna(v) else float(v)
 
 
+def _mean_or_none(series):
+    """Mean of the non-null values, or None when there are none (avoids NaN in JSON)."""
+    v = series.mean()
+    return None if v is None or pd.isna(v) else float(v)
+
+
 def _json_safe(records):
     """Replace NaN/inf in list-of-dict records with None (JSON has no NaN)."""
     return [{k: (None if isinstance(v, float) and not np.isfinite(v) else v)
@@ -249,12 +316,20 @@ def _json_safe(records):
 
 # ── Load/Initialize Customer Similarity Engine (KNN) ─────────────────────────
 print("\n[5/5] Loading Customer Similarity Engine (KNN)...")
-SIMILARITY_ENGINE = CustomerSimilarityEngine(data_df=DATASET_DF)
-if not SIMILARITY_ENGINE.load(data_df=DATASET_DF):
-    print("  Artifacts not found, fitting Customer Similarity Engine...")
-    SIMILARITY_ENGINE.fit(DATASET_DF)
-    SIMILARITY_ENGINE.save()
-print("  ✓ Customer Similarity Engine ready")
+# CHURN-21: the similarity engine is an optional feature. If it cannot be
+# loaded or fitted, the rest of the API still starts and the similarity
+# endpoints answer 503 with a clear message.
+try:
+    SIMILARITY_ENGINE = CustomerSimilarityEngine(data_df=DATASET_DF)
+    if not SIMILARITY_ENGINE.load(data_df=DATASET_DF):
+        print("  Artifacts not found, fitting Customer Similarity Engine...")
+        SIMILARITY_ENGINE.fit(DATASET_DF)
+        SIMILARITY_ENGINE.save()
+    print("  ✓ Customer Similarity Engine ready")
+except Exception as e:
+    SIMILARITY_ENGINE = None
+    print("  ⚠ Customer Similarity Engine unavailable — similarity endpoints return 503")
+    logger.error("Customer Similarity Engine failed to initialise: %s: %s", type(e).__name__, e)
 
 
 # =============================================================================
@@ -267,14 +342,29 @@ print("  ✓ Customer Similarity Engine ready")
 #   Or set as environment variable: export GEMINI_API_KEY="your_key_here"
 # ─────────────────────────────────────────────────────────────────────────────
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+# The model actually called. /retention reports this name in `generated_by`
+# (it previously claimed "gemini-1.5-flash" while calling 2.5-flash — CHURN-22).
+GEMINI_MODEL_NAME = "gemini-2.5-flash"
+# Upper bound on one Gemini call so a slow upstream cannot hang a request.
+try:
+    GEMINI_TIMEOUT_SECONDS = float(os.environ.get("GEMINI_TIMEOUT_SECONDS", "20"))
+except ValueError:
+    GEMINI_TIMEOUT_SECONDS = 20.0
+GEMINI_MODEL   = None
+GEMINI_ENABLED = False
 
 if GEMINI_API_KEY and GEMINI_API_KEY != "YOUR_GEMINI_API_KEY":
-    genai.configure(api_key=GEMINI_API_KEY)
-    GEMINI_MODEL   = genai.GenerativeModel("gemini-2.5-flash")
-    GEMINI_ENABLED = True
-    print("  ✓ Gemini API configured (AI retention emails enabled)")
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        GEMINI_MODEL   = genai.GenerativeModel(GEMINI_MODEL_NAME)
+        GEMINI_ENABLED = True
+        print("  ✓ Gemini API configured (AI retention emails enabled)")
+    except Exception as e:
+        # Never log the exception text verbatim: it may echo the key.
+        logger.error("Gemini configuration failed (%s) — /retention uses rule-based fallback",
+                     type(e).__name__)
+        print("  ⚠ Gemini configuration failed — /retention endpoint uses rule-based fallback")
 else:
-    GEMINI_ENABLED = False
     print("  ⚠ Gemini API key not set — /retention endpoint uses rule-based fallback")
     print("    Set key: export GEMINI_API_KEY='your_key'")
 
@@ -381,6 +471,128 @@ app.add_middleware(
 
 
 # =============================================================================
+#   ERROR HANDLING (CHURN-21)
+# =============================================================================
+# Every error response — 4xx and 5xx, raised by our code, by FastAPI's request
+# validation or by an unexpected crash — has the same JSON shape:
+#
+#   {
+#     "detail":      "Human-readable message",     # always a string
+#     "error":       "machine_readable_code",      # e.g. not_found, validation_error
+#     "status_code": 404,
+#     "errors":      [{"field": ..., "message": ..., "type": ...}],  # 422 only
+#     "request_id":  "3f2c..."                     # 500 only; matches the server log
+#   }
+#
+# `detail` stays a string so the frontend's `data?.detail` keeps working
+# (FastAPI's default 422 put a list there, which React cannot render).
+# Stack traces, exception text, file paths and API keys are logged server-side
+# only (redacted), never returned to the client.
+
+DEFAULT_ERROR_CODES = {
+    400: "bad_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
+    405: "method_not_allowed", 409: "conflict", 413: "payload_too_large",
+    422: "validation_error", 429: "rate_limited", 500: "internal_error",
+    502: "bad_gateway", 503: "service_unavailable", 504: "gateway_timeout",
+}
+
+
+class APIError(HTTPException):
+    """HTTPException carrying a stable machine-readable error code."""
+
+    def __init__(self, status_code: int, code: str, message: str):
+        super().__init__(status_code=status_code, detail=message)
+        self.code = code
+
+
+class ErrorResponse(BaseModel):
+    """Shape of every error response (documented in /docs)."""
+    detail:      str
+    error:       str
+    status_code: int
+    errors:      Optional[List[Dict[str, Any]]] = None
+    request_id:  Optional[str] = None
+
+
+_SECRET_PATTERNS = [
+    re.compile(r'AIza[0-9A-Za-z_\-]{20,}'),                     # Google API keys
+    re.compile(r'(?i)(api[_-]?key|key|token|password|pass)=([^&\s]+)'),
+]
+
+
+def redact(text) -> str:
+    """Remove configured secrets and key-like tokens from a log message."""
+    text = str(text)
+    for secret in (GEMINI_API_KEY, os.environ.get('GMAIL_APP_PASS', '')):
+        if secret and len(secret) >= 4:
+            text = text.replace(secret, '[REDACTED]')
+    text = _SECRET_PATTERNS[0].sub('[REDACTED]', text)
+    return _SECRET_PATTERNS[1].sub(lambda m: f'{m.group(1)}=[REDACTED]', text)
+
+
+def log_exception(exc: BaseException, message: str, *args) -> None:
+    """logger.error with a REDACTED traceback (logger.exception would leak raw text)."""
+    tb = redact(''.join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
+    logger.error(message + "\n%s", *args, tb)
+
+
+def _error_body(status_code: int, code: str, message: str, **extra) -> dict:
+    body = {"detail": message, "error": code, "status_code": status_code}
+    body.update({k: v for k, v in extra.items() if v is not None})
+    return body
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    code = getattr(exc, 'code', None) or DEFAULT_ERROR_CODES.get(exc.status_code, 'http_error')
+    message = exc.detail if isinstance(exc.detail, str) else json.dumps(exc.detail, default=str)
+    if exc.status_code >= 500:
+        logger.warning("%s %s -> %s %s: %s", request.method, request.url.path,
+                       exc.status_code, code, redact(message))
+    return JSONResponse(status_code=exc.status_code,
+                        content=_error_body(exc.status_code, code, message),
+                        headers=getattr(exc, 'headers', None))
+
+
+def _field_name(loc) -> str:
+    parts = [str(p) for p in loc if p not in ('body', 'query', 'path', 'header')]
+    return '.'.join(parts) if parts and not all(p.isdigit() for p in parts) else (
+        str(loc[0]) if loc else 'request')
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    # The offending input values are deliberately NOT echoed back.
+    errors = [{"field": _field_name(e.get('loc', ())),
+               "message": e.get('msg', 'Invalid value'),
+               "type": e.get('type', 'value_error')} for e in exc.errors()]
+    summary = '; '.join(f"{e['field']}: {e['message']}" for e in errors[:5])
+    return JSONResponse(status_code=422, content=_error_body(
+        422, 'validation_error', f"Invalid request — {summary}", errors=errors))
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    request_id = uuid.uuid4().hex[:12]
+    # The traceback is formatted here so it can be redacted too (exc_info=
+    # would print the raw exception message, which may contain a key).
+    tb = redact(''.join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
+    logger.error("Unhandled error request_id=%s %s %s: %s: %s\n%s", request_id, request.method,
+                 request.url.path, type(exc).__name__, redact(exc), tb)
+    return JSONResponse(status_code=500, content=_error_body(
+        500, 'internal_error',
+        "An unexpected server error occurred. Quote the request_id when reporting it.",
+        request_id=request_id))
+
+
+ERROR_RESPONSES = {
+    404: {"model": ErrorResponse, "description": "Customer not found"},
+    422: {"model": ErrorResponse, "description": "Malformed or out-of-range input"},
+    500: {"model": ErrorResponse, "description": "Unexpected server error"},
+}
+
+
+# =============================================================================
 #   PYDANTIC REQUEST/RESPONSE MODELS
 # =============================================================================
 # CONCEPT: Pydantic models are Python classes that define data schemas.
@@ -392,12 +604,67 @@ app.add_middleware(
 # Optional fields = not required. If not sent, they default to None.
 # The what-if endpoint uses Optional because user might only change 1 slider.
 
-class WhatIfRequest(BaseModel):
+# ── Input validation rules (CHURN-20) ─────────────────────────────────────────
+# Customer IDs: 1-32 characters of letters, digits, '_' or '-', surrounding
+# whitespace ignored. Well-formed but unknown IDs → 404; malformed IDs → 422.
+CUSTOMER_ID_PATTERN = r'^[A-Za-z0-9_-]{1,32}$'
+_CUSTOMER_ID_RE     = re.compile(CUSTOMER_ID_PATTERN)
+CUSTOMER_ID_RULE    = ("1-32 characters: letters, digits, '_' or '-' (e.g. CUST00001)")
+
+# What-if bounds: physically/commercially plausible values. They are wider
+# than the training data range (shown in brackets) so analysts can explore,
+# but XGBoost does not extrapolate — beyond the training range the prediction
+# stays flat at the edge value. NaN / ±Infinity and wrong types are rejected.
+WHATIF_BOUNDS = {
+    #  field                   (min, max)     training range
+    'watch_hours_per_week': (0.0, 168.0),   # [0.5, 40]  — 168 = hours in a week
+    'tenure_months':        (1, 240),       # [1, 72]
+    'payment_failures_3m':  (0, 20),        # [0, 4]
+    'support_tickets':      (0, 100),       # [0, 5]
+    'logins_last_30_days':  (0, 300),       # [1, 26]
+    'monthly_charge':       (1, 5000),      # {199, 499, 799}
+}
+MAX_SIMILAR_NEIGHBORS = 50
+MAX_CUSTOMERS_LIMIT   = 10000
+CUSTOMERS_SORT_FIELDS = ('churn_prob', 'clv_score', 'monthly_charge', 'tenure_months',
+                         'watch_hours_per_week', 'logins_last_30_days', 'payment_failures_3m',
+                         'support_tickets', 'customer_id', 'name', 'plan_type', 'risk_level')
+
+
+def normalize_customer_id(value) -> str:
+    """Strip whitespace and check the ID format; raise ValueError if malformed."""
+    if not isinstance(value, str):
+        raise ValueError('customer_id must be a string')
+    value = value.strip()
+    if not _CUSTOMER_ID_RE.match(value):
+        raise ValueError(f'customer_id must be {CUSTOMER_ID_RULE}')
+    return value
+
+
+def _bounded(field, kind=float):
+    lo, hi = WHATIF_BOUNDS[field]
+    if kind is float:
+        return Optional[Annotated[float, Field(strict=True, ge=lo, le=hi, allow_inf_nan=False)]]
+    return Optional[Annotated[StrictInt, Field(ge=lo, le=hi)]]
+
+
+class _CustomerIdModel(BaseModel):
+    @field_validator('customer_id', mode='before', check_fields=False)
+    @classmethod
+    def _check_customer_id(cls, v):
+        return normalize_customer_id(v)
+
+
+class WhatIfRequest(_CustomerIdModel):
     """
     Request body for POST /whatif (What-If Simulator).
 
     Frontend sends the customer_id + any features the user changed via sliders.
     Only send the fields that changed — unchanged fields stay at customer's actual values.
+    `null` (or omitting a field) keeps the customer's actual value.
+
+    Validation (CHURN-20): unknown fields, wrong types, NaN/Infinity and values
+    outside WHATIF_BOUNDS are rejected with 422.
 
     Example request body:
     {
@@ -406,13 +673,15 @@ class WhatIfRequest(BaseModel):
         "watch_hours_per_week": 8.5
     }
     """
+    model_config = ConfigDict(extra='forbid')
+
     customer_id:            str
-    watch_hours_per_week:   Optional[float] = None   # Slider: 0.5 - 40 hrs/week
-    tenure_months:          Optional[int]   = None   # Slider: 1 - 72 months
-    payment_failures_3m:    Optional[int]   = None   # Slider: 0 - 4 failures
-    support_tickets:        Optional[int]   = None   # Slider: 0 - 5 tickets
-    logins_last_30_days:    Optional[int]   = None   # Slider: 0 - 30 logins
-    monthly_charge:         Optional[int]   = None   # Dropdown: 199 / 499 / 799
+    watch_hours_per_week:   _bounded('watch_hours_per_week')       = None   # Slider: 0.5 - 40 hrs/week
+    tenure_months:          _bounded('tenure_months', int)         = None   # Slider: 1 - 72 months
+    payment_failures_3m:    _bounded('payment_failures_3m', int)   = None   # Slider: 0 - 4 failures
+    support_tickets:        _bounded('support_tickets', int)       = None   # Slider: 0 - 5 tickets
+    logins_last_30_days:    _bounded('logins_last_30_days', int)   = None   # Slider: 0 - 30 logins
+    monthly_charge:         _bounded('monthly_charge', int)        = None   # Dropdown: 199 / 499 / 799
 
 
 class WhatIfResponse(BaseModel):
@@ -427,10 +696,16 @@ class WhatIfResponse(BaseModel):
     improved:             bool     # True if change is negative (risk went down)
 
 
-class CustomerSimilarityRequest(BaseModel):
-    """Request body for POST /api/customer-similarity."""
+class CustomerSimilarityRequest(_CustomerIdModel):
+    """Request body for POST /api/customer-similarity.
+
+    n_neighbors: 1-50 (default 5; null → 5). Values outside the range are
+    rejected with 422 instead of being silently replaced (CHURN-20/23).
+    """
+    model_config = ConfigDict(extra='forbid')
+
     customer_id: str
-    n_neighbors: Optional[int] = 5
+    n_neighbors: Optional[Annotated[StrictInt, Field(ge=1, le=MAX_SIMILAR_NEIGHBORS)]] = 5
 
 
 class SimilarCustomerDetail(BaseModel):
@@ -466,6 +741,186 @@ class CustomerSimilarityResponse(BaseModel):
     similar_customers: List[SimilarCustomerDetail]
     count: int
     insights: List[str]
+
+
+# ── Response contracts (CHURN-19) ─────────────────────────────────────────────
+# These document and enforce the JSON the frontend already consumes. Field
+# names are unchanged; Optional marks fields that are null for NOT_SCORED
+# customers. FastAPI validates every response against them, so a type drift
+# becomes a test failure rather than a silent frontend bug.
+
+class CustomerRow(BaseModel):
+    customer_id:    str
+    name:           str
+    plan_type:      str
+    monthly_charge: int
+    tenure_months:  int
+    scored:         bool
+    churn_prob:     Optional[float]
+    churn_percent:  str
+    risk_level:     str
+    clv_score:      Optional[float]
+    clv_segment:    str
+    top_reason_1:   str
+    device_type:    str
+    watch_hours:    float
+
+
+class CustomersSummary(BaseModel):
+    total_customers:           int
+    high_risk_count:           int
+    medium_risk_count:         int
+    low_risk_count:            int
+    unscored_count:            int
+    scored_customers:          int
+    avg_churn_probability:     Optional[float]
+    avg_churn_percent:         str
+    revenue_at_risk_monthly:   float
+    revenue_at_risk_formatted: str
+
+
+class CustomersResponse(BaseModel):
+    summary:         CustomersSummary
+    customers:       List[CustomerRow]
+    count:           int
+    filters_applied: Dict[str, Optional[str]]
+
+
+class ClvBreakdown(BaseModel):
+    monthly_charge:   int
+    tenure_months:    int
+    retention_factor: Optional[float]
+    formula:          str
+
+
+class CustomerDetailResponse(BaseModel):
+    scored:               bool
+    prediction_source:    Optional[str]
+    customer_id:          str
+    name:                 str
+    age:                  int
+    gender:               str
+    country:              str
+    plan_type:            str
+    monthly_charge:       int
+    tenure_months:        int
+    tenure_display:       str
+    watch_hours_per_week: float
+    logins_last_30_days:  int
+    last_login_days_ago:  int
+    payment_failures_3m:  int
+    support_tickets:      int
+    num_profiles:         int
+    device_type:          str
+    payment_method:       str
+    preferred_genre:      str
+    churn_prob:           Optional[float]
+    churn_percent:        str
+    risk_level:           str
+    top_reason_1:         str
+    top_reason_2:         str
+    top_reason_3:         str
+    clv_score:            Optional[float]
+    clv_segment:          str
+    clv_formatted:        str
+    clv_breakdown:        ClvBreakdown
+
+
+class RetentionResponse(BaseModel):
+    """GET /retention/{id}. `ai_generated` is True only for genuine Gemini output."""
+    customer_id:     str
+    name:            str
+    churn_prob:      float           # 0-1, like every other endpoint (was 0-100)
+    churn_percent:   str             # e.g. "87.3%"
+    risk_level:      str
+    generated_by:    str             # GEMINI_MODEL_NAME or "rule-based-fallback"
+    ai_generated:    bool
+    fallback_reason: Optional[str]   # null when ai_generated is True
+    subject:         str
+    email:           str
+    actions:         List[str]
+    priority:        str
+    suggested_offer: str
+    top_reasons:     List[str]
+    clv_score:       float
+
+
+class SendEmailResponse(BaseModel):
+    success:     bool
+    message:     str
+    customer_id: str
+    customer:    str
+    subject:     str
+    sent_to:     str
+
+
+class EmailStatusResponse(BaseModel):
+    email_enabled: bool
+    sender:        str
+    demo_receiver: str
+    message:       str
+
+
+class DashboardKpis(BaseModel):
+    total_customers:           int
+    high_risk_count:           int
+    medium_risk_count:         int
+    low_risk_count:            int
+    unscored_count:            int
+    scored_customers:          int
+    high_risk_pct:             float
+    avg_churn_probability:     Optional[float]
+    avg_churn_percent:         str
+    revenue_at_risk_monthly:   float
+    revenue_at_risk_formatted: str
+    high_value_at_risk:        int
+
+
+class PriorityCustomer(BaseModel):
+    customer_id: str
+    name:        str
+    churn_prob:  float
+    churn_pct:   str
+    clv_score:   float
+    plan_type:   str
+    risk_level:  str
+
+
+class DashboardResponse(BaseModel):
+    kpis:                    DashboardKpis
+    churn_reasons_breakdown: Dict[str, int]
+    priority_customers:      List[PriorityCustomer]
+
+
+class SegmentsOverall(BaseModel):
+    total_customers:       int
+    scored_customers:      int
+    unscored_count:        int
+    avg_churn_rate_pct:    Optional[float]
+    total_revenue_at_risk: float
+
+
+class SegmentsResponse(BaseModel):
+    by_plan:       List[Dict[str, Any]]
+    by_device:     List[Dict[str, Any]]
+    by_tenure:     List[Dict[str, Any]]
+    by_genre:      List[Dict[str, Any]]
+    by_clv:        List[Dict[str, Any]]
+    monthly_trend: List[Dict[str, Any]]
+    overall:       SegmentsOverall
+
+
+class HealthResponse(BaseModel):
+    status:             str
+    version:            str
+    model_loaded:       bool
+    fold_models_loaded: bool
+    similarity_ready:   bool
+    total_customers:    int
+    high_risk_count:    int
+    gemini_enabled:     bool
+    email_enabled:      bool
+    endpoints:          Dict[str, str]
 
 
 # =============================================================================
@@ -601,6 +1056,42 @@ def build_feature_row(customer_data: dict) -> pd.DataFrame:
     return churniq_core.encode_features(pd.DataFrame([row]), FEATURE_NAMES)
 
 
+def get_customer_row(customer_id) -> pd.Series:
+    """
+    The FULL_DF row for a customer ID, with uniform validation (CHURN-20):
+      malformed ID → 422 validation_error, unknown ID → 404 not_found.
+    Surrounding whitespace is ignored on every endpoint (previously only the
+    similarity endpoint stripped it).
+    """
+    try:
+        cid = normalize_customer_id(customer_id)
+    except ValueError as e:
+        raise APIError(422, 'validation_error', str(e))
+    row = FULL_DF[FULL_DF['customer_id'] == cid]
+    if row.empty:
+        raise APIError(404, 'customer_not_found',
+                       f"Customer '{cid}' not found. Total customers: {len(FULL_DF)}. "
+                       f"Example valid ID: {FULL_DF['customer_id'].iloc[0]}")
+    return row.iloc[0]
+
+
+def not_scored_error(customer_id: str, what: str) -> APIError:
+    """409 for customers with no out-of-sample prediction (Bug A / CHURN-37 behaviour)."""
+    return APIError(409, 'customer_not_scored',
+                    f"Customer '{customer_id}' has no out-of-sample churn prediction "
+                    f"(not scored by the model), so {what}.")
+
+
+def _mask_email(address: str) -> str:
+    """'someone@gmail.com' → 's*****e@gmail.com' (the API is unauthenticated)."""
+    if not address or '@' not in address:
+        return 'not configured' if not address else '***'
+    local, domain = address.split('@', 1)
+    if len(local) <= 2:
+        return f"{local[:1]}***@{domain}"
+    return f"{local[0]}{'*' * (len(local) - 2)}{local[-1]}@{domain}"
+
+
 # =============================================================================
 #   PART C — API ENDPOINTS
 # =============================================================================
@@ -626,20 +1117,26 @@ def build_feature_row(customer_data: dict) -> pd.DataFrame:
 #   Deployment platforms (Render, Railway) ping this to check if server is alive
 #   If this returns non-200, the platform restarts the server
 #   Frontend can also call this to show "API Status: Connected ✓" indicator
-@app.get("/", tags=["System"])
+@app.get("/", tags=["System"], response_model=HealthResponse)
 def health_check():
     """
     Health check endpoint. Returns server status and basic stats.
     Used by deployment platforms to verify the server is alive.
+
+    model_loaded is always true here: the server refuses to start without the
+    production model (ArtifactLoadError). Optional components report their state.
     """
     high_risk = len(FULL_DF[FULL_DF['risk_level'] == 'HIGH'])
     return {
         "status":           "✓ ChurnIQ Pro API is running",
         "version":          "1.0.0",
-        "model_loaded":     True,
+        "model_loaded":     MODEL is not None,
+        "fold_models_loaded": FOLD_MODELS is not None,
+        "similarity_ready": SIMILARITY_ENGINE is not None,
         "total_customers":  len(FULL_DF),
         "high_risk_count":  high_risk,
         "gemini_enabled":   GEMINI_ENABLED,
+        "email_enabled":    EMAIL_ENABLED,
         "endpoints": {
             "customers":        "GET  /customers",
             "customer_detail":  "GET  /customer/{id}",
@@ -666,12 +1163,15 @@ def health_check():
 #   summary → KPI data for the 4 stat cards on dashboard
 #   customers → list of customer objects for the table
 #   count → how many records returned (for pagination UI)
-@app.get("/customers", tags=["Customers"])
+@app.get("/customers", tags=["Customers"], response_model=CustomersResponse,
+         responses={422: ERROR_RESPONSES[422]})
 def get_customers(
-    risk_level: Optional[str] = Query(None, description="Filter: HIGH, MEDIUM, or LOW"),
-    plan_type:  Optional[str] = Query(None, description="Filter: Basic, Standard, or Premium"),
-    limit:      int           = Query(500,  description="Max records to return"),
-    sort_by:    str           = Query("churn_prob", description="Field to sort by (descending)"),
+    risk_level: Optional[str] = Query(None, description="Filter: HIGH, MEDIUM, LOW or NOT_SCORED (case-insensitive)"),
+    plan_type:  Optional[str] = Query(None, description="Filter: Basic, Standard, or Premium (case-insensitive)"),
+    limit:      int           = Query(500,  ge=1, le=MAX_CUSTOMERS_LIMIT,
+                                      description=f"Max records to return (1-{MAX_CUSTOMERS_LIMIT})"),
+    sort_by:    str           = Query("churn_prob",
+                                      description="Field to sort by (descending): " + ", ".join(CUSTOMERS_SORT_FIELDS)),
 ):
     """
     Returns the full customer risk table with churn probabilities and risk levels.
@@ -679,19 +1179,35 @@ def get_customers(
 
     Supports filtering by risk_level and plan_type.
     Default: all customers sorted by churn_prob descending (highest risk first).
+
+    CHURN-20: unknown filter values and sort fields are rejected with 422
+    (previously ignored silently, returning unfiltered data). Sorting is
+    restricted to displayed fields — the generator's `churn_probability` and
+    the ground-truth `churn` label can no longer be used to order customers.
     """
     df = FULL_DF.copy()
 
     # Apply filters
-    if risk_level and risk_level.upper() in ['HIGH', 'MEDIUM', 'LOW']:
-        df = df[df['risk_level'] == risk_level.upper()]
+    if risk_level is not None:
+        level = risk_level.strip().upper()
+        if level not in ('HIGH', 'MEDIUM', 'LOW', NOT_SCORED):
+            raise APIError(422, 'validation_error',
+                           f"risk_level must be one of HIGH, MEDIUM, LOW, {NOT_SCORED}")
+        df = df[df['risk_level'].isna()] if level == NOT_SCORED else df[df['risk_level'] == level]
 
-    if plan_type and plan_type in ['Basic', 'Standard', 'Premium']:
-        df = df[df['plan_type'] == plan_type]
+    if plan_type is not None:
+        plans = {p.lower(): p for p in churniq_core.PLAN_ORDER}
+        plan = plans.get(plan_type.strip().lower())
+        if plan is None:
+            raise APIError(422, 'validation_error',
+                           f"plan_type must be one of {', '.join(churniq_core.PLAN_ORDER)}")
+        df = df[df['plan_type'] == plan]
 
-    # Sort (descending) — highest churn risk first by default
-    if sort_by in df.columns:
-        df = df.sort_values(sort_by, ascending=False)
+    # Sort (descending) — highest churn risk first by default; unscored last
+    if sort_by not in CUSTOMERS_SORT_FIELDS:
+        raise APIError(422, 'validation_error',
+                       f"sort_by must be one of {', '.join(CUSTOMERS_SORT_FIELDS)}")
+    df = df.sort_values(sort_by, ascending=False, na_position='last', kind='stable')
 
     df = df.head(limit)
 
@@ -726,6 +1242,7 @@ def get_customers(
     high_risk  = all_df[all_df['risk_level'] == 'HIGH']
     rev_risk   = (all_df['monthly_charge'] * all_df['churn_prob']).sum()
 
+    avg_prob = _mean_or_none(all_df['churn_prob'])
     summary = {
         "total_customers":          int(len(all_df)),
         "high_risk_count":          int(len(high_risk)),
@@ -734,8 +1251,8 @@ def get_customers(
         # high + medium + low + unscored == total_customers
         "unscored_count":           UNSCORED_COUNT,
         "scored_customers":         SCORED_COUNT,
-        "avg_churn_probability":    round(float(all_df['churn_prob'].mean()), 4),   # scored only
-        "avg_churn_percent":        f"{float(all_df['churn_prob'].mean()) * 100:.1f}%",
+        "avg_churn_probability":    round(avg_prob, 4) if avg_prob is not None else None,  # scored only
+        "avg_churn_percent":        f"{avg_prob * 100:.1f}%" if avg_prob is not None else NOT_SCORED_TEXT,
         "revenue_at_risk_monthly":  round(float(rev_risk), 2),                      # scored only
         "revenue_at_risk_formatted": f"₹{float(rev_risk):,.0f}",
     }
@@ -760,8 +1277,9 @@ def get_customers(
 #   - Top 3 SHAP reasons (plain English)
 #   - CLV score + breakdown
 #   - Default values for what-if simulator sliders
-@app.get("/customer/{customer_id}", tags=["Customers"])
-def get_customer_detail(customer_id: str):
+@app.get("/customer/{customer_id}", tags=["Customers"], response_model=CustomerDetailResponse,
+         responses={404: ERROR_RESPONSES[404], 422: ERROR_RESPONSES[422]})
+def get_customer_detail(customer_id: str = Path(..., max_length=64, description=CUSTOMER_ID_RULE)):
     """
     Returns complete detail for a single customer.
     Used on the Customer Detail page to populate:
@@ -771,19 +1289,9 @@ def get_customer_detail(customer_id: str):
       - CLV score
       - What-if simulator slider default values
     """
-    row = FULL_DF[FULL_DF['customer_id'] == customer_id]
-
     # HTTP 404 = Resource Not Found — standard REST convention
     # Never return a 200 with empty data for not-found (anti-pattern)
-    if row.empty:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Customer '{customer_id}' not found. "
-                   f"Total customers: {len(FULL_DF)}. "
-                   f"Example valid ID: {FULL_DF['customer_id'].iloc[0]}"
-        )
-
-    row        = row.iloc[0]
+    row        = get_customer_row(customer_id)
     cid        = str(row['customer_id'])
     # Bug A: unscored customers are reported as NOT_SCORED, never as 0 % / ₹0.
     # Bug B: the CUST99999 hard-coded override (churn 0.96, CLV ₹500) was
@@ -873,7 +1381,9 @@ def get_customer_detail(customer_id: str):
 #    changing one input to see its causal impact on the prediction.
 #    This is implemented as a live inference call to the loaded
 #    XGBoost model with modified feature values."
-@app.post("/whatif", response_model=WhatIfResponse, tags=["Simulation"])
+@app.post("/whatif", response_model=WhatIfResponse, tags=["Simulation"],
+          responses={**ERROR_RESPONSES, 409: {"model": ErrorResponse,
+                     "description": "Customer not scored, or its fold model is unavailable"}})
 def what_if_simulation(request: WhatIfRequest):
     """
     Recalculates churn probability with modified feature values.
@@ -883,32 +1393,23 @@ def what_if_simulation(request: WhatIfRequest):
 
     Example: Set payment_failures_3m=0 to see how fixing billing issues affects churn risk.
     """
-    # Get original customer data
-    row = FULL_DF[FULL_DF['customer_id'] == request.customer_id]
-    if row.empty:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Customer '{request.customer_id}' not found"
-        )
+    # Get original customer data (404 unknown / 422 malformed)
+    row = get_customer_row(request.customer_id)
 
-    original_prob = model_prob(row.iloc[0])
+    original_prob = model_prob(row)
     if original_prob is None:
         # Bug A: previously NaN → HTTP 500. There is no out-of-sample baseline
         # prediction to compare against, so the what-if comparison is unavailable.
-        raise HTTPException(
-            status_code=409,
-            detail=f"Customer '{request.customer_id}' has no out-of-sample churn prediction "
-                   f"(not scored by the model), so a what-if comparison is unavailable."
-        )
-    scoring_model = model_for(row.iloc[0])
+        raise not_scored_error(request.customer_id, "a what-if comparison is unavailable")
+    scoring_model = model_for(row)
     if scoring_model is None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Customer '{request.customer_id}' was scored out-of-fold, but the fold "
-                   f"models (oof_fold_models.pkl) are not available, so a consistent "
-                   f"what-if comparison cannot be made."
+        raise APIError(
+            409, 'fold_model_unavailable',
+            f"Customer '{request.customer_id}' was scored out-of-fold, but the fold "
+            f"models (oof_fold_models.pkl) are not available, so a consistent "
+            f"what-if comparison cannot be made."
         )
-    customer_data = row.iloc[0].to_dict()
+    customer_data = row.to_dict()
 
     # Apply overrides — only change what was explicitly sent
     # CONCEPT: If frontend sends None for a field, we keep original value
@@ -933,12 +1434,13 @@ def what_if_simulation(request: WhatIfRequest):
         # CHURN-37: use the model that produced the displayed probability
         # (fold model for out-of-fold customers, production MODEL otherwise)
         new_prob = float(scoring_model.predict_proba(feature_df)[0][1])
+        if not np.isfinite(new_prob):
+            raise ValueError(f"model returned a non-finite probability ({new_prob})")
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Prediction failed: {str(e)}. "
-                   f"Check that feature values are within expected ranges."
-        )
+        # CHURN-21: details go to the server log, not to the client.
+        log_exception(e, "What-if prediction failed for %s: %s", request.customer_id, redact(e))
+        raise APIError(500, 'prediction_failed',
+                       "The what-if prediction could not be computed. The error has been logged.")
 
     change = round(new_prob - original_prob, 4) + 0.0   # + 0.0 turns -0.0 into 0.0
 
@@ -955,8 +1457,14 @@ def what_if_simulation(request: WhatIfRequest):
 
 
 # ── ENDPOINT 4B: Customer Similarity Finder (KNN) ─────────────────────────────
-@app.post("/api/customer-similarity", response_model=CustomerSimilarityResponse, tags=["Customer Similarity"])
-@app.post("/customer-similarity", response_model=CustomerSimilarityResponse, tags=["Customer Similarity"])
+_SIMILARITY_RESPONSES = {**ERROR_RESPONSES, 503: {"model": ErrorResponse,
+                         "description": "Similarity engine unavailable"}}
+
+
+@app.post("/api/customer-similarity", response_model=CustomerSimilarityResponse, tags=["Customer Similarity"],
+          responses=_SIMILARITY_RESPONSES)
+@app.post("/customer-similarity", response_model=CustomerSimilarityResponse, tags=["Customer Similarity"],
+          responses=_SIMILARITY_RESPONSES)
 def get_customer_similarity(request: CustomerSimilarityRequest):
     """
     Finds the N most similar historical customers using K-Nearest Neighbors (KNN).
@@ -965,15 +1473,20 @@ def get_customer_similarity(request: CustomerSimilarityRequest):
     - Excludes the selected customer's own record from the returned neighbor list.
     - Preserves ground-truth historical churn outcomes from the dataset.
     - Returns distance-derived similarity percentages and factual lookalike insights.
+    - n_neighbors must be 1-50 (default 5); neighbours are ordered closest first.
     """
-    cid = request.customer_id.strip()
-    n_k = request.n_neighbors if request.n_neighbors and request.n_neighbors > 0 else 5
+    cid = request.customer_id                    # already stripped + format-checked
+    n_k = request.n_neighbors if request.n_neighbors is not None else 5
 
     if cid not in FULL_DF["customer_id"].values:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Customer '{cid}' not found. Please provide a valid customer ID (e.g., CUST00001)."
+        raise APIError(
+            404, 'customer_not_found',
+            f"Customer '{cid}' not found. Please provide a valid customer ID (e.g., CUST00001)."
         )
+    if SIMILARITY_ENGINE is None:
+        raise APIError(503, 'similarity_unavailable',
+                       "The customer similarity engine is not available on this server. "
+                       "Check the server log and the similarity_*.joblib artifacts.")
 
     try:
         results = SIMILARITY_ENGINE.find_similar_customers(
@@ -985,12 +1498,19 @@ def get_customer_similarity(request: CustomerSimilarityRequest):
             build_feature_row_fn=build_feature_row,
         )
         return results
-    except KeyError as ke:
-        raise HTTPException(status_code=404, detail=str(ke))
+    except KeyError:
+        # The ID is in FULL_DF but not in the fitted engine (stale artifacts).
+        logger.warning("Similarity engine has no record for %s (stale artifacts?)", cid)
+        raise APIError(404, 'customer_not_found',
+                       f"Customer '{cid}' is not indexed by the similarity engine.")
     except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
+        logger.error("Similarity engine rejected request for %s: %s", cid, ve)
+        raise APIError(503, 'similarity_unavailable',
+                       "The customer similarity engine is not ready. The error has been logged.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Similarity calculation failed: {str(e)}")
+        log_exception(e, "Similarity calculation failed for %s: %s", cid, redact(e))
+        raise APIError(500, 'similarity_failed',
+                       "Similarity calculation failed. The error has been logged.")
 
 
 # ── ENDPOINT 5: Gemini Retention Email ────────────────────────────────────────
@@ -1017,8 +1537,67 @@ def get_customer_similarity(request: CustomerSimilarityRequest):
 #    a business action. The prompt includes the top 3 SHAP-identified
 #    churn drivers with their impact scores, enabling Gemini to write
 #    emails that address specific pain points rather than generic offers."
-@app.get("/retention/{customer_id}", tags=["AI Retention"])
-def get_retention_strategy(customer_id: str):
+GEMINI_FALLBACK_REASONS = {
+    'gemini_not_configured':   'GEMINI_API_KEY is not set, so no AI generation was attempted.',
+    'gemini_timeout':          'The Gemini call exceeded the time limit.',
+    'gemini_api_error':        'The Gemini API returned an error.',
+    'gemini_invalid_response': 'Gemini returned a response that was not the expected JSON.',
+}
+
+
+def _is_timeout(exc: Exception) -> bool:
+    name = type(exc).__name__
+    return isinstance(exc, TimeoutError) or 'Timeout' in name or 'DeadlineExceeded' in name
+
+
+def _parse_gemini_json(text: str) -> dict:
+    """Strip optional markdown fences and validate Gemini's JSON (ValueError if unusable)."""
+    # Even when told "no markdown fences", LLMs sometimes add them
+    text = re.sub(r'^```json\s*', '', text.strip(), flags=re.MULTILINE)
+    text = re.sub(r'^```\s*',     '', text, flags=re.MULTILINE)
+    text = re.sub(r'\s*```$',     '', text).strip()
+    data = json.loads(text)                     # JSONDecodeError is a ValueError
+    if not isinstance(data, dict):
+        raise ValueError('Gemini JSON is not an object')
+    for key in ('subject', 'email'):
+        if not isinstance(data.get(key), str) or not data[key].strip():
+            raise ValueError(f"Gemini JSON has no usable '{key}'")
+    actions = data.get('actions')
+    if (not isinstance(actions, list) or not actions
+            or not all(isinstance(a, str) and a.strip() for a in actions)):
+        raise ValueError("Gemini JSON has no usable 'actions' list")
+    return data
+
+
+def call_gemini(prompt: str, customer_id: str):
+    """
+    One Gemini call with a timeout. Returns (data, None) on success or
+    (None, fallback_reason) on any failure — it never raises, never logs the
+    API key (messages pass through redact()) and never logs the prompt.
+    """
+    if not GEMINI_ENABLED or GEMINI_MODEL is None:
+        return None, 'gemini_not_configured'
+    try:
+        response = GEMINI_MODEL.generate_content(
+            prompt, request_options={"timeout": GEMINI_TIMEOUT_SECONDS})
+        return _parse_gemini_json(response.text), None
+    except ValueError as e:
+        # Malformed / incomplete JSON, or response.text unavailable (e.g. blocked)
+        logger.warning("Gemini invalid response for %s: %s", customer_id, redact(e))
+        return None, 'gemini_invalid_response'
+    except Exception as e:
+        if _is_timeout(e):
+            logger.warning("Gemini timeout (%.0fs) for %s", GEMINI_TIMEOUT_SECONDS, customer_id)
+            return None, 'gemini_timeout'
+        # Gemini API error (quota exceeded, network issue, invalid key, etc.)
+        logger.warning("Gemini API error for %s: %s: %s", customer_id, type(e).__name__, redact(e))
+        return None, 'gemini_api_error'
+
+
+@app.get("/retention/{customer_id}", tags=["AI Retention"], response_model=RetentionResponse,
+         responses={**ERROR_RESPONSES, 409: {"model": ErrorResponse,
+                    "description": "Customer not scored by the model"}})
+def get_retention_strategy(customer_id: str = Path(..., max_length=64, description=CUSTOMER_ID_RULE)):
     """
     Generates a personalized retention email and recommended actions
     using Google Gemini AI, based on the customer's SHAP churn reasons.
@@ -1026,32 +1605,41 @@ def get_retention_strategy(customer_id: str):
     Returns: subject line, email body, 2 business actions, priority level,
              and the top churn reasons that informed the email.
 
-    Falls back to rule-based generation if Gemini is unavailable.
+    Falls back to rule-based generation if Gemini is unavailable, times out,
+    errors or returns unusable output. Fallback content is always labelled:
+    generated_by="rule-based-fallback", ai_generated=false and a
+    fallback_reason code (CHURN-22).
     """
-    row = FULL_DF[FULL_DF['customer_id'] == customer_id]
-    if row.empty:
-        raise HTTPException(status_code=404, detail=f"Customer '{customer_id}' not found")
-
-    row = row.iloc[0]
-    if model_prob(row) is None:
+    row = get_customer_row(customer_id)
+    customer_id = str(row['customer_id'])
+    prob = model_prob(row)
+    if prob is None:
         # Bug A: previously NaN → HTTP 500. Without a model prediction there are
         # no SHAP churn reasons to base a retention strategy on.
-        raise HTTPException(
-            status_code=409,
-            detail=f"Customer '{customer_id}' has no out-of-sample churn prediction "
-                   f"(not scored by the model), so no SHAP-based retention strategy can be generated."
-        )
+        raise not_scored_error(customer_id, "no SHAP-based retention strategy can be generated")
 
     # Extract customer context for prompt
-    name        = str(row.get('name', 'Valued Customer')).split()[0]   # First name only
+    raw_name    = row.get('name')
+    raw_name    = str(raw_name).strip() if isinstance(raw_name, str) and raw_name.strip() else 'Valued Customer'
+    name        = raw_name.split()[0]   # First name only
     plan        = str(row.get('plan_type', 'Basic'))
     charge      = int(row.get('monthly_charge', 199))
     tenure      = int(row.get('tenure_months', 1))
     watch_hrs   = round(float(row.get('watch_hours_per_week', 0) or 0), 1)
     pay_fail    = int(row.get('payment_failures_3m', 0))
     support     = int(row.get('support_tickets', 0))
-    churn_pct   = round(float(row.get('churn_prob', 0) or 0) * 100, 1)
+    churn_pct   = round(prob * 100, 1)
+    risk        = get_risk_level(prob)
     clv         = round(float(row.get('clv_score', 0) or 0), 0)
+    common      = {
+        "customer_id":   customer_id,
+        "name":          name,
+        # CHURN-19: 0-1 like every other endpoint (was a 0-100 percentage)
+        "churn_prob":    round(prob, 4),
+        "churn_percent": f"{prob * 100:.1f}%",
+        "risk_level":    risk,
+        "clv_score":     clv,
+    }
     reason1     = explain_reason(customer_id, row.get('top_reason_1', ''))
     reason2     = explain_reason(customer_id, row.get('top_reason_2', ''))
     reason3     = explain_reason(customer_id, row.get('top_reason_3', ''))
@@ -1107,44 +1695,23 @@ RESPOND IN THIS EXACT JSON FORMAT (no extra text before or after, no markdown fe
 }}"""
 
     # ── Call Gemini API ─────────────────────────────────────────────────────
-    if GEMINI_ENABLED:
-        try:
-            response      = GEMINI_MODEL.generate_content(prompt)
-            response_text = response.text.strip()
-
-            # Strip markdown code fences if Gemini wrapped response in them
-            # Even when told "no markdown fences", LLMs sometimes add them
-            response_text = re.sub(r'^```json\s*', '', response_text, flags=re.MULTILINE)
-            response_text = re.sub(r'^```\s*',     '', response_text, flags=re.MULTILINE)
-            response_text = re.sub(r'\s*```$',     '', response_text)
-            response_text = response_text.strip()
-
-            gemini_data = json.loads(response_text)
-
-            return {
-                "customer_id":     customer_id,
-                "name":            name,
-                "churn_prob":      churn_pct,
-                "generated_by":    "gemini-1.5-flash",
-                "subject":         gemini_data.get("subject", f"We value you, {name}"),
-                "email":           gemini_data.get("email", ""),
-                "actions":         gemini_data.get("actions", []),
-                "priority":        gemini_data.get("priority", "MEDIUM"),
-                "suggested_offer": gemini_data.get("suggested_offer", ""),
-                "top_reasons":     [reason1, reason2, reason3],
-                "clv_score":       clv,
-            }
-
-        except json.JSONDecodeError as e:
-            # Gemini returned something we couldn't parse as JSON
-            # Log the error, fall through to rule-based fallback
-            print(f"  ⚠ Gemini JSON parse error for {customer_id}: {e}")
-
-        except Exception as e:
-            # Gemini API error (quota exceeded, network issue, etc.)
-            print(f"  ⚠ Gemini API error for {customer_id}: {e}")
-
-        # Fall through to rule-based fallback if we reach here
+    # Never raises; on any failure returns a fallback_reason and we fall
+    # through to the rule-based fallback below.
+    gemini_data, fallback_reason = call_gemini(prompt, customer_id)
+    if gemini_data is not None:
+        priority = str(gemini_data.get("priority", "")).strip().upper()
+        return {
+            **common,
+            "generated_by":    GEMINI_MODEL_NAME,   # was mislabelled "gemini-1.5-flash"
+            "ai_generated":    True,
+            "fallback_reason": None,
+            "subject":         gemini_data["subject"].strip(),
+            "email":           gemini_data["email"].strip(),
+            "actions":         [a.strip() for a in gemini_data["actions"]],
+            "priority":        priority if priority in ('HIGH', 'MEDIUM', 'LOW') else risk,
+            "suggested_offer": str(gemini_data.get("suggested_offer") or ""),
+            "top_reasons":     [reason1, reason2, reason3],
+        }
 
     # ── Rule-Based Fallback ─────────────────────────────────────────────────
     # CONCEPT: Graceful degradation — system still works without Gemini.
@@ -1207,31 +1774,56 @@ RESPOND IN THIS EXACT JSON FORMAT (no extra text before or after, no markdown fe
         subject  = f"Thank you for being with us, {name}"
 
     return {
-        "customer_id":     customer_id,
-        "name":            name,
-        "churn_prob":      churn_pct,
+        **common,
         "generated_by":    "rule-based-fallback",
+        "ai_generated":    False,
+        "fallback_reason": fallback_reason,
         "subject":         subject,
         "email":           body,
         "actions":         [action1, action2],
-        "priority":        "HIGH" if churn_pct >= 70 else "MEDIUM",
+        # Matches the risk tier (LOW-risk customers were labelled MEDIUM before)
+        "priority":        risk,
         "suggested_offer": offer,
         "top_reasons":     [reason1, reason2, reason3],
-        "clv_score":       clv,
     }
 # ─────────────────────────────────────────────────────────────
 # PART 2 — Yeh endpoint main.py mein add karo
 #           (/retention endpoint ke BAAD)
 # ─────────────────────────────────────────────────────────────
  
-class SendEmailRequest(BaseModel):
-    """Request body for POST /send-email"""
-    customer_id: str     # Customer jiske liye email generate hui
-    subject:     str     # Gemini generated subject line
-    body:        str     # Gemini generated email body
- 
- 
-@app.post("/send-email", tags=["AI Retention"])
+class SendEmailRequest(_CustomerIdModel):
+    """Request body for POST /send-email.
+
+    CHURN-20: subject 1-200 chars on a single line (CR/LF would allow e-mail
+    header injection); body 1-5000 chars. Unknown fields are rejected.
+    """
+    model_config = ConfigDict(extra='forbid')
+
+    customer_id: str                                                   # Customer jiske liye email generate hui
+    subject:     Annotated[str, Field(min_length=1, max_length=200)]   # Gemini generated subject line
+    body:        Annotated[str, Field(min_length=1, max_length=5000)]  # Gemini generated email body
+
+    @field_validator('subject')
+    @classmethod
+    def _single_line_subject(cls, v):
+        if '\r' in v or '\n' in v:
+            raise ValueError('subject must be a single line (no CR/LF characters)')
+        if not v.strip():
+            raise ValueError('subject must not be blank')
+        return v.strip()
+
+    @field_validator('body')
+    @classmethod
+    def _non_blank_body(cls, v):
+        if not v.strip():
+            raise ValueError('body must not be blank')
+        return v
+
+
+@app.post("/send-email", tags=["AI Retention"], response_model=SendEmailResponse,
+          responses={**ERROR_RESPONSES,
+                     502: {"model": ErrorResponse, "description": "SMTP delivery failed"},
+                     503: {"model": ErrorResponse, "description": "Email sending not configured"}})
 def send_retention_email(request: SendEmailRequest):
     """
     Sends Gemini-generated retention email via Gmail SMTP.
@@ -1257,28 +1849,24 @@ def send_retention_email(request: SendEmailRequest):
     """
     # Check email is configured
     if not EMAIL_ENABLED:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Email sending not configured. "
-                "Run add_emails.py first to set up Gmail credentials."
-            )
+        raise APIError(
+            503, 'email_not_configured',
+            "Email sending not configured. "
+            "Run add_emails.py first to set up Gmail credentials."
         )
- 
-    # Get customer details for email header
-    row = FULL_DF[FULL_DF['customer_id'] == request.customer_id]
-    if row.empty:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Customer '{request.customer_id}' not found"
-        )
- 
-    r          = row.iloc[0]
+
+    # Get customer details for email header (404 unknown / 422 malformed)
+    r          = get_customer_row(request.customer_id)
     cust_name  = str(r.get('name', 'Unknown'))
     plan       = str(r.get('plan_type', ''))
     _p         = model_prob(r)
-    churn_pct  = round(_p * 100, 1) if _p is not None else 'N/A'
-    clv        = round(float(r['clv_score']), 0) if _p is not None else 0
+    # Unscored customers: 'N/A', never a fabricated 0 % / ₹0 (Bug A)
+    churn_txt  = f"{round(_p * 100, 1)}%" if _p is not None else 'N/A (not scored)'
+    clv_txt    = f"Rs.{round(float(r['clv_score']), 0):,.0f}" if _p is not None else 'N/A'
+    # CHURN-20: user-supplied text is HTML-escaped before it goes into the HTML part
+    h_body            = html.escape(request.body)
+    h_name, h_plan    = html.escape(cust_name), html.escape(plan)
+    h_cid             = html.escape(request.customer_id)
  
     try:
         # ── Build Email ───────────────────────────────────────
@@ -1294,8 +1882,8 @@ def send_retention_email(request: SendEmailRequest):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Customer   : {cust_name} ({request.customer_id})
 Plan       : {plan}
-Churn Risk : {churn_pct}%  ← HIGH RISK
-CLV Score  : Rs.{clv:,.0f}
+Churn Risk : {churn_txt}
+CLV Score  : {clv_txt}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 AI Generated Retention Email:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1323,19 +1911,19 @@ Sent by ChurnIQ Pro — AI Churn Prevention System
     <table style="width: 100%; font-size: 14px;">
       <tr>
         <td style="color: #666; padding: 3px 0;">Customer</td>
-        <td style="font-weight: bold;">{cust_name} ({request.customer_id})</td>
+        <td style="font-weight: bold;">{h_name} ({h_cid})</td>
       </tr>
       <tr>
         <td style="color: #666; padding: 3px 0;">Plan</td>
-        <td>{plan}</td>
+        <td>{h_plan}</td>
       </tr>
       <tr>
         <td style="color: #666; padding: 3px 0;">Churn Risk</td>
-        <td style="color: #FF4444; font-weight: bold;">{churn_pct}% — HIGH RISK 🔴</td>
+        <td style="color: #FF4444; font-weight: bold;">{html.escape(churn_txt)}</td>
       </tr>
       <tr>
         <td style="color: #666; padding: 3px 0;">CLV Score</td>
-        <td>Rs.{clv:,.0f}</td>
+        <td>{html.escape(clv_txt)}</td>
       </tr>
     </table>
   </div>
@@ -1346,7 +1934,7 @@ Sent by ChurnIQ Pro — AI Churn Prevention System
     </p>
     <div style="background: #f0f4ff; padding: 20px; border-radius: 6px;
                 font-size: 15px; line-height: 1.7; white-space: pre-wrap;">
-{request.body}
+{h_body}
     </div>
   </div>
  
@@ -1374,45 +1962,44 @@ Sent by ChurnIQ Pro — AI Churn Prevention System
             server.login(GMAIL_SENDER, GMAIL_APP_PASS)
             server.send_message(msg)
  
-        print(f"  ✓ Email sent for {request.customer_id} → {DEMO_RECEIVER}")
- 
+        logger.info("Retention email sent for %s", request.customer_id)
+        masked = _mask_email(DEMO_RECEIVER)
+
         return {
             "success":     True,
-            "message":     f"Email sent to {DEMO_RECEIVER}",
+            "message":     f"Email sent to {masked}",
             "customer_id": request.customer_id,
             "customer":    cust_name,
             "subject":     request.subject,
-            "sent_to":     DEMO_RECEIVER,
+            # CHURN-21: masked — this API is unauthenticated
+            "sent_to":     masked,
         }
- 
-    except smtplib.SMTPAuthenticationError:
-        raise HTTPException(
-            status_code=401,
-            detail=(
-                "Gmail authentication failed. "
-                "Check App Password in email_config.json. "
-                "Make sure 2-Step Verification is ON in Google Account."
-            )
+
+    # CHURN-21: SMTP failures are the SERVER's upstream problem, so they are
+    # 502 (not 401/500), and the SMTP server's text is logged, not returned.
+    except smtplib.SMTPAuthenticationError as e:
+        logger.error("Gmail authentication failed (SMTP %s)", getattr(e, 'smtp_code', '?'))
+        raise APIError(
+            502, 'smtp_auth_failed',
+            "Gmail authentication failed. "
+            "Check App Password in email_config.json. "
+            "Make sure 2-Step Verification is ON in Google Account."
         )
-    except smtplib.SMTPException as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"SMTP error: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Email sending failed: {str(e)}"
-        )
- 
- 
-@app.get("/email-status", tags=["AI Retention"])
+    except (smtplib.SMTPException, OSError) as e:
+        logger.error("SMTP delivery failed for %s: %s: %s", request.customer_id,
+                     type(e).__name__, redact(e))
+        raise APIError(502, 'smtp_error',
+                       "The email could not be delivered by the mail server. The error has been logged.")
+
+
+@app.get("/email-status", tags=["AI Retention"], response_model=EmailStatusResponse)
 def email_status():
-    """Check if Gmail email sending is configured and ready."""
+    """Check if Gmail email sending is configured and ready.
+    Addresses are masked (CHURN-21): this endpoint is public."""
     return {
         "email_enabled": EMAIL_ENABLED,
-        "sender":        GMAIL_SENDER if EMAIL_ENABLED else "not configured",
-        "demo_receiver": DEMO_RECEIVER if EMAIL_ENABLED else "not configured",
+        "sender":        _mask_email(GMAIL_SENDER) if EMAIL_ENABLED else "not configured",
+        "demo_receiver": _mask_email(DEMO_RECEIVER) if EMAIL_ENABLED else "not configured",
         "message":       (
             "Email sending is ready! Use POST /send-email"
             if EMAIL_ENABLED else
@@ -1426,7 +2013,7 @@ def email_status():
 # CONCEPT: groupby().agg() = SQL GROUP BY with aggregation
 # Returns pre-aggregated data so frontend just renders charts —
 # no frontend-side data processing needed
-@app.get("/segments", tags=["Analytics"])
+@app.get("/segments", tags=["Analytics"], response_model=SegmentsResponse)
 def get_segment_analysis():
     """
     Returns churn statistics aggregated by various segments.
@@ -1486,11 +2073,14 @@ def get_segment_analysis():
     # ── Monthly Trend (simulated from data distribution) ─────────────
     # We don't have real time-series, so we simulate a realistic trend
     # In production: replace with actual monthly snapshot queries
-    np.random.seed(42)
+    # A local RandomState(42) gives exactly the numbers np.random.seed(42)
+    # did, without re-seeding NumPy's global RNG on every request (CHURN-21).
+    rng        = np.random.RandomState(42)
     months     = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    base_rate  = float(df['churn_prob'].mean()) * 100
-    noise      = np.random.normal(0, 2.0, 12).cumsum() * 0.3
+    _avg       = _mean_or_none(df['churn_prob'])
+    base_rate  = _avg * 100 if _avg is not None else 0.0
+    noise      = rng.normal(0, 2.0, 12).cumsum() * 0.3
     trend      = [
         {"month": m, "churn_rate": round(max(5.0, min(60.0, base_rate + n)), 1)}
         for m, n in zip(months, noise)
@@ -1507,7 +2097,7 @@ def get_segment_analysis():
             "total_customers":       int(len(df)),
             "scored_customers":      SCORED_COUNT,     # rates/averages use scored customers only
             "unscored_count":        UNSCORED_COUNT,   # shown as clv_segment 'Unknown' in by_clv
-            "avg_churn_rate_pct":    round(base_rate, 1),
+            "avg_churn_rate_pct":    round(base_rate, 1) if _avg is not None else None,
             "total_revenue_at_risk": round(float(
                 (df['monthly_charge'] * df['churn_prob']).sum()
             ), 2),
@@ -1518,7 +2108,7 @@ def get_segment_analysis():
 # ── ENDPOINT 7: Dashboard Summary (All KPIs in One Call) ─────────────────────
 # USED BY: Dashboard home page — populate ALL 4 KPI cards + priority list
 # in a single network request instead of multiple calls
-@app.get("/dashboard/summary", tags=["Analytics"])
+@app.get("/dashboard/summary", tags=["Analytics"], response_model=DashboardResponse)
 def get_dashboard_summary():
     """
     Returns all KPI data for the dashboard home page in a single API call.
@@ -1532,6 +2122,8 @@ def get_dashboard_summary():
     med_risk   = df[df['risk_level'] == 'MEDIUM']
     low_risk   = df[df['risk_level'] == 'LOW']
     rev_risk   = float((df['monthly_charge'] * df['churn_prob']).sum())
+
+    avg_prob   = _mean_or_none(df['churn_prob'])
 
     # Top 5 highest-CLV high-risk customers = most impactful to act on first
     priority = df[df['risk_level'] == 'HIGH'].nlargest(5, 'clv_score')
@@ -1547,9 +2139,11 @@ def get_dashboard_summary():
             "scored_customers":           SCORED_COUNT,
             # share of SCORED customers (previously divided by all 5,001,
             # 80 % of whom have no prediction)
-            "high_risk_pct":              round(len(high_risk) / SCORED_COUNT * 100, 1),
-            "avg_churn_probability":      round(float(df['churn_prob'].mean()), 4),
-            "avg_churn_percent":          f"{float(df['churn_prob'].mean()) * 100:.1f}%",
+            "high_risk_pct":              (round(len(high_risk) / SCORED_COUNT * 100, 1)
+                                           if SCORED_COUNT else 0.0),
+            "avg_churn_probability":      round(avg_prob, 4) if avg_prob is not None else None,
+            "avg_churn_percent":          (f"{avg_prob * 100:.1f}%" if avg_prob is not None
+                                           else NOT_SCORED_TEXT),
             "revenue_at_risk_monthly":    round(rev_risk, 2),
             "revenue_at_risk_formatted":  f"₹{rev_risk:,.0f}",
             "high_value_at_risk":         int(len(df[

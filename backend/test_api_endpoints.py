@@ -106,9 +106,56 @@ def run_tests():
     assert r2.status_code == 200
     print("  ✓ Existing endpoints /dashboard/summary and /segments are fully functional.")
 
+    # 8. CHURN-20/21/25 edge cases — invalid input is 4xx with a JSON string detail
+    print("\n8. Edge cases: unknown / malformed IDs, empty bodies, out-of-range values...")
+    def is_error(r, status):
+        body = r.json()
+        return (r.status_code == status and isinstance(body.get("detail"), str)
+                and body.get("status_code") == status and body.get("error"))
+
+    for r in (client.get("/customer/NON_EXISTENT_ID"), client.get("/retention/NON_EXISTENT_ID"),
+              client.post("/whatif", json={"customer_id": "NON_EXISTENT_ID"})):
+        assert is_error(r, 404), (r.status_code, r.text)
+    for r in (client.post("/whatif", json={}),
+              client.post("/whatif", json={"customer_id": ""}),
+              client.post("/whatif", json={"customer_id": "CUST00001", "watch_hours_per_week": -1}),
+              client.post("/whatif", json={"customer_id": "CUST00001", "tenure_months": 10**6}),
+              client.post("/whatif", json={"customer_id": "CUST00001", "unknown": 1}),
+              client.post("/whatif", content=b"{bad json", headers={"content-type": "application/json"}),
+              client.post("/api/customer-similarity", json={"customer_id": "CUST00001", "n_neighbors": 0}),
+              client.post("/api/customer-similarity", json={"customer_id": "CUST00001", "n_neighbors": 51}),
+              client.get("/customers?limit=-1"),
+              client.get("/customers?risk_level=BOGUS"),
+              client.get("/customers?sort_by=churn_probability")):
+        assert is_error(r, 422), (r.status_code, r.text)
+    print("  ✓ 404 for unknown customers, 422 for malformed input — all with a JSON string detail.")
+
+    # 9. Boundary values are accepted
+    print("\n9. Boundary values...")
+    for k in (1, 50):
+        r = client.post("/api/customer-similarity", json={"customer_id": "CUST00001", "n_neighbors": k})
+        assert r.status_code == 200 and r.json()["count"] == k
+    r = client.post("/whatif", json={"customer_id": "CUST00001", "watch_hours_per_week": 0,
+                                     "payment_failures_3m": 0, "support_tickets": 0})
+    assert r.status_code == 200
+    print("  ✓ n_neighbors 1 and 50, zero-valued what-if inputs accepted.")
+
+    # 10. Retention content is labelled (Gemini output vs rule-based fallback)
+    print("\n10. GET /retention/CUST00001 labelling...")
+    ret = client.get("/retention/CUST00001").json()
+    assert ret["ai_generated"] is (ret["generated_by"] != "rule-based-fallback")
+    assert ret["ai_generated"] or ret["fallback_reason"]
+    assert 0 <= ret["churn_prob"] <= 1
+    print(f"  ✓ generated_by={ret['generated_by']}, fallback_reason={ret['fallback_reason']}")
+
     print("\n==============================================")
     print("✓ ALL FASTAPI ENDPOINT TESTS PASSED WITH 100% SUCCESS!")
     print("==============================================")
+
+def test_api_endpoints():
+    """pytest entry point (CHURN-25): `python -m pytest test_api_endpoints.py`."""
+    run_tests()
+
 
 if __name__ == "__main__":
     run_tests()

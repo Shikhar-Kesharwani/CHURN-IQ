@@ -56,6 +56,7 @@ CHURN-IQ/
 │   └── README.md                         # Detailed frontend documentation
 │
 ├── docs/ml/                              # ML validation reports (pipeline, evaluation, SHAP, CLV, research)
+├── docs/api/                             # API quality report (endpoint inventory, contracts, validation, errors, tests)
 ├── .gitignore                            # Root gitignore (ignores node_modules, dist, __pycache__, .env)
 └── README.md                             # Root Project Documentation
 ```
@@ -108,6 +109,10 @@ CHURN-IQ/
 | `GET` | `/retention/{id}` | Gemini AI personalized retention email and actions |
 | `GET` | `/segments` | Aggregated churn distributions across segments |
 | `GET` | `/dashboard/summary` | Executive dashboard KPI summary in a single call |
+| `POST` | `/send-email` | Send the retention email to the demo inbox (needs Gmail config) |
+| `GET` | `/email-status` | Whether email sending is configured (addresses masked) |
+
+Full inventory, response contracts, input-validation rules and the JSON error format (`{detail, error, status_code, errors?, request_id?}`): [`docs/api/README.md`](docs/api/README.md).
 
 ### Customer Similarity Request & Response
 **`POST /api/customer-similarity`**
@@ -204,7 +209,13 @@ Open your browser at: `http://localhost:5173/similarity`
 
 ## 🧪 Testing & Verification
 
-Both test suites pass with 100% assertions:
+Run the whole backend suite (ML validation + API quality, CHURN-13..25) from `backend/`:
+
+```bash
+python -m pytest
+```
+
+Commands, coverage and results: [`docs/api/README.md` §9](docs/api/README.md#9-test-commands-and-results). The two original script-style suites can still be run directly:
 * **Engine Tests**: `python backend/test_similarity_engine.py` validates KNN training, scaling consistency, distance sorting, self-neighbor exclusion, and error handling for invalid customer IDs.
 * **Endpoint Tests**: `python backend/test_api_endpoints.py` tests all REST endpoints, response schemas, and ensures zero regressions on existing XGBoost and What-If routes.
 
