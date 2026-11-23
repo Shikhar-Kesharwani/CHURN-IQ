@@ -75,8 +75,10 @@ def test_surrounding_whitespace_is_ignored_on_every_endpoint(client, cid):
 # ── Request bodies ───────────────────────────────────────────────────────────
 @pytest.mark.parametrize('path', ['/whatif', '/api/customer-similarity', '/send-email'])
 @pytest.mark.parametrize('content', [b'', b'{not json', b'[]', b'"CUST00001"', b'null', b'{"a":'])
-def test_empty_and_malformed_bodies_are_422(client, path, content):
-    r = client.post(path, content=content, headers={'content-type': 'application/json'})
+def test_empty_and_malformed_bodies_are_422(client, path, content, email_auth):
+    # /send-email needs the CHURN-44 bearer token before its body is even read
+    r = client.post(path, content=content, headers={'content-type': 'application/json',
+                                                     **email_auth})
     _check(r, 422, 'validation_error')
 
 
@@ -188,8 +190,9 @@ def test_every_allowed_sort_field_works(client, field):
     {'subject': 'Hi', 'body': '  '}, {'subject': 'Hi', 'body': 'x' * 5001},
     {'subject': 'Hi'}, {'body': 'x'}, {'subject': 'Hi', 'body': 'x', 'to': 'a@b.c'},
 ])
-def test_send_email_rejects_bad_bodies_before_anything_else(client, cid, body):
-    _check(client.post('/send-email', json={'customer_id': cid, **body}), 422, 'validation_error')
+def test_send_email_rejects_bad_bodies_before_anything_else(client, cid, body, email_auth):
+    _check(client.post('/send-email', json={'customer_id': cid, **body}, headers=email_auth),
+           422, 'validation_error')
 
 
 # ── NOT_SCORED behaviour (Aryan, CHURN-37) is preserved ──────────────────────

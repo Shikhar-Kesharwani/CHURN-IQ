@@ -109,7 +109,7 @@ CHURN-IQ/
 | `GET` | `/retention/{id}` | Gemini AI personalized retention email and actions |
 | `GET` | `/segments` | Aggregated churn distributions across segments |
 | `GET` | `/dashboard/summary` | Executive dashboard KPI summary in a single call |
-| `POST` | `/send-email` | Send the retention email to the demo inbox (needs Gmail config) |
+| `POST` | `/send-email` | Send the retention email to the demo inbox (needs Gmail config and `Authorization: Bearer <EMAIL_API_TOKEN>`; rate limited) |
 | `GET` | `/email-status` | Whether email sending is configured (addresses masked) |
 
 Full inventory, response contracts, input-validation rules and the JSON error format (`{detail, error, status_code, errors?, request_id?}`): [`docs/api/README.md`](docs/api/README.md).

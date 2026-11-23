@@ -56,7 +56,8 @@
 
 # FastAPI — the web framework that turns Python functions into REST API endpoints
 # Uvicorn — the ASGI server that runs FastAPI (async capable, much faster than Flask)
-from fastapi import FastAPI, HTTPException, Query, Path, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Path, Request, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -423,6 +424,33 @@ if EMAIL_ENABLED:
     print("  ✓ Gmail config loaded (email sending enabled)")
 else:
     print("  ⚠ Gmail not configured — set GMAIL_SENDER and GMAIL_APP_PASS env variables")
+
+# ── /send-email protection (CHURN-44) ────────────────────────────────────────
+# EMAIL_API_TOKEN: server-side shared secret. Callers must send
+#   Authorization: Bearer <EMAIL_API_TOKEN>
+# Unset (or shorter than 16 chars) → /send-email is disabled (503), fail closed.
+# EMAIL_RATE_LIMIT_MAX per EMAIL_RATE_LIMIT_WINDOW_SECONDS, per client IP,
+# counted for every authenticated attempt (valid or not) and, separately, for
+# every failed authentication attempt. In-memory: per process (see docs).
+import email_security as esec
+
+EMAIL_API_TOKEN                 = esec.configured_token(os.environ.get('EMAIL_API_TOKEN'))
+EMAIL_RATE_LIMIT_MAX            = esec.env_int(os.environ, 'EMAIL_RATE_LIMIT_MAX', 5)
+EMAIL_RATE_LIMIT_WINDOW_SECONDS = esec.env_int(os.environ, 'EMAIL_RATE_LIMIT_WINDOW_SECONDS', 600)
+EMAIL_SEND_LIMITER   = esec.SlidingWindowLimiter(EMAIL_RATE_LIMIT_MAX, EMAIL_RATE_LIMIT_WINDOW_SECONDS)
+EMAIL_AUTH_FAIL_LIMITER = esec.SlidingWindowLimiter(EMAIL_RATE_LIMIT_MAX, EMAIL_RATE_LIMIT_WINDOW_SECONDS)
+
+if EMAIL_API_TOKEN:
+    print(f"  ✓ /send-email protected: bearer token + {EMAIL_RATE_LIMIT_MAX} requests "
+          f"per {EMAIL_RATE_LIMIT_WINDOW_SECONDS}s per client")
+elif (os.environ.get('EMAIL_API_TOKEN') or '').strip():
+    print(f"  ⚠ EMAIL_API_TOKEN is shorter than {esec.MIN_TOKEN_LENGTH} characters — "
+          "ignored; /send-email is disabled")
+else:
+    print("  ⚠ EMAIL_API_TOKEN not set — /send-email is disabled (returns 503)")
+if esec.env_int(os.environ, 'WEB_CONCURRENCY', 1) > 1:
+    print("  ⚠ WEB_CONCURRENCY > 1: the /send-email rate limit is per worker process, "
+          "so the effective limit is multiplied by the number of workers")
 # =============================================================================
 #   FASTAPI APP INITIALIZATION
 # =============================================================================
@@ -453,6 +481,63 @@ app = FastAPI(
     docs_url="/docs",       # Swagger UI at /docs
     redoc_url="/redoc",     # ReDoc UI at /redoc
 )
+
+# ── /send-email gate (CHURN-44) ──────────────────────────────────────────────
+# Runs BEFORE routing and body parsing, so authentication and rate limiting
+# apply to every request — including malformed or invalid bodies, which can
+# therefore neither probe the endpoint unauthenticated nor bypass the limit.
+# Registered before CORSMiddleware so CORS stays the outermost layer and the
+# browser can read 401/429 responses.
+EMAIL_PROTECTED_PATHS = ('/send-email', '/send-email/')
+EMAIL_UNAUTHORIZED_MESSAGE = ("Missing or invalid email API token. "
+                              "Send the header 'Authorization: Bearer <token>'.")
+
+
+def _client_key(request: Request) -> str:
+    # request.client is the direct peer. X-Forwarded-For is NOT trusted here
+    # (it is client-controlled); run uvicorn with --proxy-headers and
+    # --forwarded-allow-ips behind a trusted proxy to get real client IPs.
+    return request.client.host if request.client else 'unknown'
+
+
+def _rate_limited_response(retry_after: int) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content=_error_body(429, 'rate_limited',
+                            f"Too many email requests. Try again in {retry_after} seconds."),
+        headers={'Retry-After': str(retry_after)})
+
+
+@app.middleware('http')
+async def email_endpoint_gate(request: Request, call_next):
+    if request.url.path not in EMAIL_PROTECTED_PATHS or request.method == 'OPTIONS':
+        return await call_next(request)
+
+    if not EMAIL_API_TOKEN:
+        return JSONResponse(status_code=503, content=_error_body(
+            503, 'email_auth_not_configured',
+            "Email sending is disabled: no API token is configured on the server."))
+
+    client = _client_key(request)
+    verdict = esec.check_bearer_token(request.headers.get('authorization'), EMAIL_API_TOKEN)
+    if verdict != 'ok':
+        # Failed attempts have their own bucket: brute-forcing the token is
+        # throttled, but cannot use up the quota of legitimate callers.
+        allowed, retry = EMAIL_AUTH_FAIL_LIMITER.hit(client)
+        logger.warning("/send-email rejected: %s credentials (client %s)", verdict, client)
+        if not allowed:
+            return _rate_limited_response(retry)
+        return JSONResponse(status_code=401,
+                            content=_error_body(401, 'unauthorized', EMAIL_UNAUTHORIZED_MESSAGE),
+                            headers={'WWW-Authenticate': 'Bearer'})
+
+    # Authenticated: every attempt counts, valid or not.
+    allowed, retry = EMAIL_SEND_LIMITER.hit(client)
+    if not allowed:
+        logger.warning("/send-email rate limit exceeded (client %s)", client)
+        return _rate_limited_response(retry)
+    return await call_next(request)
+
 
 # ── CORS Middleware ──────────────────────────────────────────────────────────
 # CONCEPT: Browsers enforce CORS (Cross-Origin Resource Sharing) policy.
@@ -528,7 +613,8 @@ _SECRET_PATTERNS = [
 def redact(text) -> str:
     """Remove configured secrets and key-like tokens from a log message."""
     text = str(text)
-    for secret in (GEMINI_API_KEY, os.environ.get('GMAIL_APP_PASS', '')):
+    for secret in (GEMINI_API_KEY, os.environ.get('GMAIL_APP_PASS', ''), GMAIL_APP_PASS,
+                   EMAIL_API_TOKEN, os.environ.get('EMAIL_API_TOKEN', '')):
         if secret and len(secret) >= 4:
             text = text.replace(secret, '[REDACTED]')
     text = _SECRET_PATTERNS[0].sub('[REDACTED]', text)
@@ -860,10 +946,12 @@ class SendEmailResponse(BaseModel):
 
 
 class EmailStatusResponse(BaseModel):
-    email_enabled: bool
-    sender:        str
-    demo_receiver: str
-    message:       str
+    email_enabled:   bool
+    sender:          str
+    demo_receiver:   str
+    message:         str
+    auth_configured: bool   # CHURN-44: is EMAIL_API_TOKEN set? (never the token itself)
+    rate_limit:      str    # CHURN-44: e.g. "5 requests per 600 seconds per client"
 
 
 class DashboardKpis(BaseModel):
@@ -1811,8 +1899,10 @@ class SendEmailRequest(_CustomerIdModel):
     @field_validator('subject')
     @classmethod
     def _single_line_subject(cls, v):
-        if '\r' in v or '\n' in v:
-            raise ValueError('subject must be a single line (no CR/LF characters)')
+        # CHURN-44: every line break (CR, LF, VT, FF, NEL, U+2028/9 …) and
+        # control character is rejected, not only CR/LF.
+        if esec.has_line_break_or_control(v):
+            raise ValueError('subject must be a single line (no CR/LF or control characters)')
         if not v.strip():
             raise ValueError('subject must not be blank')
         return v.strip()
@@ -1820,16 +1910,32 @@ class SendEmailRequest(_CustomerIdModel):
     @field_validator('body')
     @classmethod
     def _non_blank_body(cls, v):
+        if esec.has_line_break_or_control(v, allow='\n\r\t\u2028\u2029'):
+            raise ValueError('body must not contain control characters')
         if not v.strip():
             raise ValueError('body must not be blank')
         return v
 
 
+_email_bearer = HTTPBearer(auto_error=False, scheme_name='EmailApiToken',
+                          description='EMAIL_API_TOKEN (CHURN-44)')
+
+
+def require_email_token(http_request: Request,
+                        _creds: Optional[HTTPAuthorizationCredentials] = Security(_email_bearer)):
+    """Defence in depth behind email_endpoint_gate; also shows the lock in /docs."""
+    if esec.check_bearer_token(http_request.headers.get('authorization'), EMAIL_API_TOKEN) != 'ok':
+        raise APIError(401, 'unauthorized', EMAIL_UNAUTHORIZED_MESSAGE)
+
+
 @app.post("/send-email", tags=["AI Retention"], response_model=SendEmailResponse,
           responses={**ERROR_RESPONSES,
+                     401: {"model": ErrorResponse, "description": "Missing, malformed or invalid API token"},
+                     429: {"model": ErrorResponse, "description": "Email rate limit exceeded"},
                      502: {"model": ErrorResponse, "description": "SMTP delivery failed"},
                      503: {"model": ErrorResponse, "description": "Email sending not configured"}})
-def send_retention_email(request: SendEmailRequest):
+def send_retention_email(request: SendEmailRequest,
+                         _auth: None = Depends(require_email_token)):
     """
     Sends Gemini-generated retention email via Gmail SMTP.
  
@@ -1858,6 +1964,16 @@ def send_retention_email(request: SendEmailRequest):
             503, 'email_not_configured',
             "Email sending not configured. "
             "Run add_emails.py first to set up Gmail credentials."
+        )
+
+    # CHURN-44: the recipient is never taken from the request (no open relay);
+    # the configured addresses are checked before they go into a header.
+    if not (esec.is_valid_address(GMAIL_SENDER) and esec.is_valid_address(DEMO_RECEIVER)):
+        logger.error("Email misconfigured: GMAIL_SENDER or DEMO_RECEIVER is not a valid address")
+        raise APIError(
+            503, 'email_misconfigured',
+            "Email sending is misconfigured on the server (invalid sender or demo "
+            "recipient address). The error has been logged."
         )
 
     # Get customer details for email header (404 unknown / 422 malformed)
@@ -2005,6 +2121,9 @@ def email_status():
         "email_enabled": EMAIL_ENABLED,
         "sender":        _mask_email(GMAIL_SENDER) if EMAIL_ENABLED else "not configured",
         "demo_receiver": _mask_email(DEMO_RECEIVER) if EMAIL_ENABLED else "not configured",
+        "auth_configured": bool(EMAIL_API_TOKEN),
+        "rate_limit":    (f"{EMAIL_RATE_LIMIT_MAX} requests per "
+                          f"{EMAIL_RATE_LIMIT_WINDOW_SECONDS} seconds per client"),
         "message":       (
             "Email sending is ready! Use POST /send-email"
             if EMAIL_ENABLED else

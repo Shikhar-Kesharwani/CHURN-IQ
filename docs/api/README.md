@@ -32,7 +32,7 @@ Every route in `backend/main.py`. Each one was exercised with valid data through
 | POST | `/api/customer-similarity` | KNN look-alike customers | body `CustomerSimilarityRequest` | `CustomerSimilarityResponse` | ✅ Works (CHURN-41) | — |
 | POST | `/customer-similarity` | Alias of the above (identical output) | same | same | ✅ Works | — |
 | GET | `/retention/{customer_id}` | Retention email + 2 actions | path `customer_id` | `RetentionResponse` | ✅ Works. Gemini mocked in tests; rule-based fallback verified live (CHURN-42) | **Google Gemini** (optional, `GEMINI_API_KEY`) |
-| POST | `/send-email` | Send the retention email to the demo inbox | body `SendEmailRequest` | `SendEmailResponse` | ⚠️ Works with SMTP mocked; returns 503 when not configured (CHURN-44) | **Gmail SMTP** (`GMAIL_SENDER`, `GMAIL_APP_PASS`) |
+| POST | `/send-email` | Send the retention email to the demo inbox | header `Authorization: Bearer <EMAIL_API_TOKEN>`, body `SendEmailRequest` | `SendEmailResponse` | ✅ Works with SMTP mocked. Bearer token + rate limit; 503 when not configured (CHURN-44, [§12](#12-email-endpoint-security-churn-44)) | **Gmail SMTP** (`GMAIL_SENDER`, `GMAIL_APP_PASS`) |
 | GET | `/email-status` | Is email sending configured? | — | `EmailStatusResponse` | ✅ Works (addresses now masked) | — |
 | GET | `/segments` | Churn by plan, device, tenure, genre, CLV; 12-month trend | — | `SegmentsResponse` | ✅ Works | — |
 | GET | `/dashboard/summary` | All dashboard KPIs + top 5 priority customers | — | `DashboardResponse` | ✅ Works | — |
@@ -396,9 +396,71 @@ All six were found in this review, fixed on this branch, and linked to their sto
 
 1. **No live Gemini test yet.** No API key was available in the CI/agent environment. The Gemini host is reachable and answers 403 without a key. All Gemini paths are verified with a mock and with the real client library (transport stubbed). Run the manual smoke test in §5.2 with a valid key before closing CHURN-22.
 2. **No live SMTP test.** SMTP was mocked; no email was sent.
-3. **`/send-email` has no authentication or rate limit** (noted on CHURN-44, out of scope). Anyone who can reach the API can trigger demo emails. The whole API is unauthenticated with `allow_origins=["*"]`.
+3. **`/send-email` is now protected by a bearer token and a rate limit** (CHURN-44, [§12](#12-email-endpoint-security-churn-44)). The limiter is in-memory and per process. The other endpoints are still unauthenticated with `allow_origins=["*"]`. They are read-only or compute-only and send nothing.
 4. **What-If is not monotonic per customer** (§7). This is a model property for the E2/ML owners: consider XGBoost `monotone_constraints` or the regularised configuration from docs/ml/05.
 5. **`requirements-dev.txt` cannot be installed on Python 3.10.13** (`matplotlib==3.11.2` needs ≥ 3.11), while `runtime.txt` says 3.10.13. This is pre-existing and not changed here, because it belongs to the E2 tooling. The 3.10-compatible install is in §9.1.
 6. **`GET /customers` defaults to `limit=500`**, so the Risk Table page shows only 500 of 5,001 customers (pre-existing UI behaviour, unchanged).
 7. **What-If bounds are wider than the training data**, and the model is flat beyond the training range (§3).
 8. Import-time degraded-artifact branches are only partly covered (§8).
+
+---
+
+## 12. Email endpoint security (CHURN-44)
+
+CHURN-44 first fixed HTML/header injection, the "HIGH RISK" label, SMTP error leaks and the unmasked addresses (§10). What it did not fix was authentication and a rate limit on `POST /send-email`. That is added here. The code is in `backend/email_security.py` and the `email_endpoint_gate` middleware in `backend/main.py`. The tests are in `backend/tests/test_email_security.py`.
+
+### 12.1 Configuration
+
+| Variable | Required | Default | Meaning |
+|---|---|---|---|
+| `EMAIL_API_TOKEN` | **yes**, to send | — | Shared secret, at least 16 characters. Unset or shorter → `/send-email` returns **503** `email_auth_not_configured` (fails closed). Generate one: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `EMAIL_RATE_LIMIT_MAX` | no | `5` | Requests allowed per window, per client |
+| `EMAIL_RATE_LIMIT_WINDOW_SECONDS` | no | `600` | Window length (sliding) |
+| `GMAIL_SENDER`, `GMAIL_APP_PASS`, `DEMO_RECEIVER` | yes, to send | — | Unchanged. Sender and receiver must be plain `local@domain.tld` addresses, otherwise **503** `email_misconfigured` |
+
+Set them on the backend host (Render → Environment) or in your shell. Never commit them. `.env.example` lists the names only. `GET /email-status` reports `auth_configured` (true/false, never the token) and the active `rate_limit`.
+
+### 12.2 Authentication
+
+* The client sends `Authorization: Bearer <EMAIL_API_TOKEN>`. No other location is accepted: not `X-API-Key`, not a query string, not a cookie.
+* The token is compared in constant time (`hmac.compare_digest`).
+* A missing, malformed (wrong scheme, extra words, quotes) or wrong token always gets the **same** response: **401**, `{"error": "unauthorized", ...}` with `WWW-Authenticate: Bearer`.
+* The check runs in a middleware **before routing and body parsing**. An unauthenticated caller learns nothing about the body rules, and even malformed JSON gets 401. The route also checks the token itself, as defence in depth, and `/docs` shows the lock (`EmailApiToken` bearer scheme).
+* The token is never logged or returned. `redact()` also strips it, along with the Gmail App Password loaded from `email_config.json`, from logged tracebacks.
+* **Frontend.** On the first *Send Email* click, the Customer Detail page asks the operator for the token. It keeps it in `sessionStorage` for that tab only, and clears it again after a 401. The token is deliberately **not** read from a `VITE_*` variable: Vite compiles those into the public JavaScript bundle. API clients just add the header:
+
+```bash
+curl -X POST "$API/send-email" -H "Authorization: Bearer $EMAIL_API_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"customer_id":"CUST00001","subject":"We miss you","body":"Hi ..."}'
+```
+
+### 12.3 Rate limiting
+
+* The default is 5 requests per 600 s (sliding window) per client IP. Exceeding it returns **429** `rate_limited` with a `Retry-After` header (seconds).
+* **Authenticated** attempts all count, whether they succeed, fail validation (422), name an unknown customer (404) or have malformed JSON. Invalid requests therefore cannot bypass the limit.
+* **Failed authentication** attempts are counted in a separate bucket with the same limits. Brute-forcing the token is throttled to 5 guesses per 10 minutes, but it cannot use up the quota of the legitimate caller.
+* `X-Forwarded-For` is **not** trusted, because a client can set it to anything. The key is the direct peer address.
+* No new dependency is needed. It is a small, thread-safe in-memory limiter with bounded memory.
+
+**Deployment limitations**
+
+1. **Per process.** The project runs a single `uvicorn main:app` process (no `--workers`, no gunicorn config). With *N* workers the effective limit becomes *N* × `EMAIL_RATE_LIMIT_MAX`. The server prints a warning at start-up when `WEB_CONCURRENCY > 1`. If you scale out, move the limiter to a shared store (for example Redis). A shared store was not added because this demo has no shared backend.
+2. **Resets on restart.** Counters live in memory.
+3. **Behind a reverse proxy** (Render), every request arrives from the proxy's address, so all clients share one bucket. That works as a global limit, which is the safe direction for a demo. For per-user limits, run `uvicorn main:app --proxy-headers --forwarded-allow-ips=<proxy IP>` so `request.client` is the real client.
+4. A shared token identifies "someone who knows the token", not an individual user. Rotate it by changing `EMAIL_API_TOKEN` and restarting.
+
+### 12.4 Validation and injection
+
+* **Recipient.** It is never taken from the request. `to`, `recipient`, `cc`, `bcc`, `from`, `reply_to` and `headers` are rejected with 422 (`extra='forbid'`), so there is no open relay. The configured `DEMO_RECEIVER` and `GMAIL_SENDER` are validated before use: no CR/LF, spaces, display names or lists. An invalid value returns 503 `email_misconfigured`, the address is not echoed, and SMTP is not contacted.
+* **Subject.** One line of 1–200 characters. Every line break (CR, LF, VT, FF, NEL, U+2028/U+2029) and every control character is rejected, not only CR/LF.
+* **Body.** 1–5000 characters, not blank. Newlines and tabs are allowed. Other control characters (NUL, ESC, BEL …) are rejected.
+* **HTML.** The body and the customer name, plan and id are `html.escape`d in the HTML part. The plain-text part is unchanged.
+* **SMTP errors.** 502 `smtp_auth_failed` / `smtp_error` with a generic message. The SMTP server's text, codes and credentials are logged only in redacted form and never returned. Responses and logs never contain the full sender or receiver address. Responses show the masked address.
+
+### 12.5 Tests
+
+`backend/tests/test_email_security.py` has 127 tests, with SMTP replaced by a fake, so no email is sent. They cover missing, invalid and malformed tokens (401), a valid token (full send), a server with no token (503), auth before body parsing, CORS preflight and CORS headers on 401/429, the OpenAPI security scheme, attempts to choose a recipient (422), malformed configured addresses (503), CR/LF/Unicode-line-break/control-character injection (422), HTML/script escaping in the body and customer fields, 429 with `Retry-After`, invalid requests consuming quota, the separate auth-failure bucket, per-client buckets, `X-Forwarded-For` not bypassing the limit, SMTP auth/refused/OS errors (502, no leaks), no token, password or address in any response or log, and unchanged email content for valid sends. Existing `/send-email` tests in `test_api_errors.py` and `test_api_validation.py` now send the test token.
+
+Full backend suite (Python 3.13, `cd backend && python -m pytest -q`): **481 passed** (354 on `main` before this change + 127 new). Mutation check: disabling the gate, the limiter, HTML escaping or address validation makes 10, 6, 5 and 14 of the new tests fail respectively.
+
