@@ -170,7 +170,7 @@ Part H → Predictions Table              (churn_prob + top 3 SHAP reasons)
 | GET | `/retention/{id}` | Gemini AI email + actions |
 | GET | `/segments` | Churn stats by segment |
 | GET | `/dashboard/summary` | All KPIs in one call |
-| POST | `/send-email` | Send retention email via Gmail |
+| POST | `/send-email` | Send retention email via Gmail (bearer token `EMAIL_API_TOKEN`, rate limited — see docs/api §12) |
 | GET | `/email-status` | Check email configuration |
 
 Validation rules, error format and test results: [`docs/api/README.md`](../docs/api/README.md).
@@ -203,7 +203,15 @@ export GEMINI_API_KEY=your_key_here # Mac/Linux
 
 # Set up demo customer + Gmail (optional)
 python add_emails.py
+
+# Required to enable POST /send-email (CHURN-44): a random secret, >= 16 chars
+export EMAIL_API_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+# Optional rate limit (defaults: 5 requests per 600 s per client)
+export EMAIL_RATE_LIMIT_MAX=5
+export EMAIL_RATE_LIMIT_WINDOW_SECONDS=600
 ```
+The frontend asks for this token the first time you click **Send Email**.
+API clients send it as `Authorization: Bearer <token>`.
 
 ### 5. Start backend
 ```bash

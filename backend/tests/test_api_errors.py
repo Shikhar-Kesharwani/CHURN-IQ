@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FAKE_KEY = 'AIzaFAKE_TEST_KEY_not_a_real_key'
 SECRET_PATH = '/home/secret/models/churniq_model.pkl'
+AUTH = {'Authorization': 'Bearer test-token-0123456789-abcdefghij'}   # conftest.TEST_EMAIL_TOKEN
 
 
 @pytest.fixture
@@ -151,7 +152,7 @@ def test_redact_removes_keys_and_configured_secrets(api, monkeypatch):
 
 # ── /send-email failures (SMTP mocked; nothing is sent) ──────────────────────
 @pytest.fixture
-def email_on(api, monkeypatch):
+def email_on(api, monkeypatch, email_auth):
     main = api[0]
     monkeypatch.setattr(main, 'EMAIL_ENABLED', True)
     monkeypatch.setattr(main, 'GMAIL_SENDER', 'sender.account@gmail.com')
@@ -188,7 +189,7 @@ def test_send_email_success_masks_address_and_escapes_html(client, email_on, sco
     fake, sent = email_on
     body = '<script>alert(1)</script> Hi & welcome'
     r = client.post('/send-email', json={'customer_id': scored_ids[0], 'subject': 'Hello <b>',
-                                         'body': body})
+                                         'body': body}, headers=AUTH)
     assert r.status_code == 200, r.text
     out = r.json()
     assert out['success'] is True and out['sent_to'] == 'r*************n@gmail.com'
@@ -204,20 +205,23 @@ def test_send_email_smtp_failures_are_502_without_server_text(client, email_on, 
                                                               mode, code):
     fake, _ = email_on
     fake.mode = mode
-    r = client.post('/send-email', json={'customer_id': scored_ids[0], 'subject': 'Hi', 'body': 'x'})
+    r = client.post('/send-email', json={'customer_id': scored_ids[0], 'subject': 'Hi', 'body': 'x'},
+                    headers=AUTH)
     assert r.status_code == 502 and r.json()['error'] == code
     _assert_no_leak(r.text)
     assert 'app-pass-secret' not in r.text and 'bad credentials' not in r.text
 
 
-def test_send_email_not_configured_is_503(api, client, scored_ids, monkeypatch):
+def test_send_email_not_configured_is_503(api, client, scored_ids, monkeypatch, email_auth):
     monkeypatch.setattr(api[0], 'EMAIL_ENABLED', False)
-    r = client.post('/send-email', json={'customer_id': scored_ids[0], 'subject': 'Hi', 'body': 'x'})
+    r = client.post('/send-email', json={'customer_id': scored_ids[0], 'subject': 'Hi', 'body': 'x'},
+                    headers=AUTH)
     assert r.status_code == 503 and r.json()['error'] == 'email_not_configured'
 
 
 def test_send_email_unknown_customer_is_404(client, email_on):
-    r = client.post('/send-email', json={'customer_id': 'NOPE', 'subject': 'Hi', 'body': 'x'})
+    r = client.post('/send-email', json={'customer_id': 'NOPE', 'subject': 'Hi', 'body': 'x'},
+                    headers=AUTH)
     assert r.status_code == 404
 
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { api } from '../api/churniq'
+import { api, getEmailToken, setEmailToken, clearEmailToken } from '../api/churniq'
 import { ArrowLeft, Mail, Copy, Send, AlertTriangle, CheckCircle, Sliders, Users } from 'lucide-react'
 
 function RiskBadge({ level }) {
@@ -120,12 +120,24 @@ export default function CustomerDetail() {
 
   const handleSend = async () => {
     if (!emailData) return
+    setSendResult(null)
+    // CHURN-44: /send-email is protected by a server-side token
+    let token = getEmailToken()
+    if (!token) {
+      token = (window.prompt('Enter the email API token (EMAIL_API_TOKEN) to send this email:') || '').trim()
+      if (!token) {
+        setSendResult({ error: 'An email API token is required to send emails.' })
+        return
+      }
+      setEmailToken(token)
+    }
     setSendLoading(true)
     const res = await api.sendEmail({
       customer_id: id,
       subject: emailData.subject,
       body: emailData.email,
-    })
+    }, token)
+    if (res?.status === 401) clearEmailToken()   // wrong token: ask again next time
     setSendResult(res)
     setSendLoading(false)
   }
@@ -361,6 +373,12 @@ export default function CustomerDetail() {
                 <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(56,161,105,0.1)', border: '1px solid rgba(56,161,105,0.2)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <CheckCircle size={14} style={{ color: 'var(--green)' }} />
                   <p style={{ fontSize: 12, color: 'var(--green)' }}>Email sent to {sendResult.sent_to}!</p>
+                </div>
+              )}
+              {sendResult?.error && (
+                <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(229,62,62,0.1)', border: '1px solid rgba(229,62,62,0.2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertTriangle size={14} style={{ color: 'var(--red)' }} />
+                  <p style={{ fontSize: 12, color: 'var(--red)' }}>{sendResult.error}</p>
                 </div>
               )}
             </div>

@@ -48,3 +48,27 @@ def oof_ids(api):
     # Training customers scored out-of-fold (CHURN-37)
     p = api[0].PREDICTIONS_DF
     return list(p.loc[p['prediction_source'] == 'cv_out_of_fold', 'customer_id'])
+
+
+# ── /send-email auth + rate limit (CHURN-44) ─────────────────────────────────
+# A test-only token (not a real secret). Tests that call /send-email use the
+# `email_auth` fixture and send EMAIL_AUTH_HEADERS.
+TEST_EMAIL_TOKEN = 'test-token-0123456789-abcdefghij'
+EMAIL_AUTH_HEADERS = {'Authorization': f'Bearer {TEST_EMAIL_TOKEN}'}
+
+
+@pytest.fixture(autouse=True)
+def _reset_email_rate_limits():
+    """Every test starts with empty /send-email rate-limit buckets."""
+    main = sys.modules.get('main')
+    for name in ('EMAIL_SEND_LIMITER', 'EMAIL_AUTH_FAIL_LIMITER'):
+        if main is not None and hasattr(main, name):
+            getattr(main, name).reset()
+    yield
+
+
+@pytest.fixture
+def email_auth(api, monkeypatch):
+    """Configure the server-side EMAIL_API_TOKEN; returns the request headers."""
+    monkeypatch.setattr(api[0], 'EMAIL_API_TOKEN', TEST_EMAIL_TOKEN)
+    return dict(EMAIL_AUTH_HEADERS)
