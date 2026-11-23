@@ -40,7 +40,7 @@ Every route in `backend/main.py`. Each one was exercised with valid data through
 
 **Status codes used.** 200 success. 404 unknown customer or route. 405 wrong method. 409 customer not scored, or its fold model unavailable. 422 malformed or out-of-range input. 500 unexpected error. 502 SMTP failure. 503 optional component not configured (email, similarity engine).
 
-**Externally dependent endpoints.** `/retention` calls Gemini only when `GEMINI_API_KEY` is set. No key was available in this environment, so **no live Gemini call was made**. All Gemini behaviour was verified with a mocked client ([§5](#5-gemini-retention-api-churn-22)). `/send-email` needs Gmail credentials. It was tested with a mocked `smtplib.SMTP_SSL`, and **no email was sent**.
+**Externally dependent endpoints.** `/retention` calls Gemini only when `GEMINI_API_KEY` is set. During the PR #2 work no key was available, so the automated tests verify all Gemini behaviour with a mocked client ([§5](#5-gemini-retention-api-churn-22)). A **live Gemini call was made later**, after PR #3, and succeeded ([§5.3](#53-live-gemini-test-result)). `/send-email` needs Gmail credentials. It was tested only with a mocked or fake SMTP server, and **no email was sent**.
 
 ---
 
@@ -208,6 +208,27 @@ curl -s localhost:8000/retention/CUST00001 | python -c "import sys,json; d=json.
 
 Expected on success: `{'generated_by': 'gemini-3.5-flash', 'ai_generated': True, 'fallback_reason': None}`, or your `GEMINI_MODEL_NAME` if you overrode it. If `ai_generated` is `False`, `fallback_reason` and the server log (redacted) give the cause. For example, `gemini_api_error` with a 404 in the log means the key can't access that model.
 
+### 5.3 Live Gemini test result
+
+The Gemini work was tested in two stages. Keep them apart when reading this report.
+
+| Stage | What was tested | Real Gemini API? |
+|---|---|---|
+| PR #2 (`feature/shikhar-e3-e4-api-quality`) | All Gemini paths in `tests/test_retention_gemini.py`, using a mocked client or the real client library with the network transport stubbed | **No.** No API key was available |
+| PR #3 (`fix/gemini-model-config`) | Model made configurable, default `gemini-3.5-flash` (the old `gemini-2.5-flash` returned 404 for the project key). Still mocked in automated tests | **No** |
+| Manual smoke test (§5.2), after PR #3 was merged | `GET /retention/{id}` against the real Google Gemini API | **Yes, it passed** |
+
+**Live result**, recorded on 23 November 2026 in Jira [CHURN-22 comment 10026](https://avanishrajauria.atlassian.net/browse/CHURN-22?focusedCommentId=10026):
+
+- HTTP **200 OK**
+- `ai_generated: true`
+- `generated_by: "gemini-3.5-flash"`
+- `fallback_reason: null`
+- Python 3.10.13
+- Tested on merged `main` at commit `39c1aa2` (PR #3 merge)
+
+The automated suite still mocks Gemini, so CI never needs a real key. The live check was manual and is not repeated automatically. Re-run §5.2 after changing the model or the key.
+
 ---
 
 ## 6. KNN similarity (CHURN-23)
@@ -343,7 +364,20 @@ python test_api_endpoints.py
 python test_similarity_engine.py
 ```
 
-**Results (Python 3.10.13):** **354 passed, 0 failed, 0 skipped** (`python -m pytest`, 1 min 52 s) after the Gemini model fix (`fix/gemini-model-config`). It was 345 when PR #2 merged; both coverage runs below were taken then, and 345 passed each time.
+**Results by stage.** The backend suite grew with each PR. Each total below is the full-suite result recorded at that stage. A later total includes everything before it.
+
+| Stage | Backend result | Python | What was added |
+|---|---|---|---|
+| Baseline: `main` @ `7d605c5`, before this work | 95 passed | 3.10.13 | ML suite only (the two script tests were run separately and passed) |
+| PR #2 merged (API quality, CHURN-18..25) | **345 passed**, 0 failed | 3.10.13 | contract, validation, error, Gemini (38), KNN and What-If suites. The coverage runs in §8 were taken at this point |
+| PR #3 merged (Gemini model configuration, CHURN-22) | **354 passed**, 0 failed, 0 skipped (`python -m pytest`, 1 min 52 s) | 3.10.13 | 9 Gemini model-configuration tests (47 in total) |
+| PR #4 merged (email endpoint security, CHURN-44) | **481 passed**, 0 failed | 3.13.18 | 127 tests in `tests/test_email_security.py` (§12.5) |
+
+**Final result: 481 passed**, as reported by PR #4. PR #4 also reports a successful frontend build (`npm run build`). Its SMTP checks used a mocked or fake SMTP server, and **no real email was sent**. Gemini is mocked in every automated run; the separate live Gemini check is in §5.3.
+
+PR #4 ran on Python 3.13.18 because `requirements-dev.txt` does not install on Python 3.10.13 (§11). Running the same 354 tests there gave the same 354 passed before PR #4's changes were applied.
+
+The table below breaks down the 354-test suite after PR #3. PR #4 then added `tests/test_email_security.py` (127 tests) and changed only how the existing `/send-email` tests authenticate.
 
 | Suite | Tests |
 |---|---|
@@ -394,7 +428,7 @@ All six were found in this review, fixed on this branch, and linked to their sto
 
 ## 11. Known limitations and unresolved issues
 
-1. **No live Gemini test yet.** No API key was available in the CI/agent environment. The Gemini host is reachable and answers 403 without a key. All Gemini paths are verified with a mock and with the real client library (transport stubbed). Run the manual smoke test in §5.2 with a valid key before closing CHURN-22.
+1. **Gemini live testing is manual.** The automated tests mock Gemini, so they need no API key. A manual live test after PR #3 succeeded (200, `ai_generated: true`, `generated_by: gemini-3.5-flash`; §5.3). It is not repeated automatically.
 2. **No live SMTP test.** SMTP was mocked; no email was sent.
 3. **`/send-email` is now protected by a bearer token and a rate limit** (CHURN-44, [§12](#12-email-endpoint-security-churn-44)). The limiter is in-memory and per process. The other endpoints are still unauthenticated with `allow_origins=["*"]`. They are read-only or compute-only and send nothing.
 4. **What-If is not monotonic per customer** (§7). This is a model property for the E2/ML owners: consider XGBoost `monotone_constraints` or the regularised configuration from docs/ml/05.
