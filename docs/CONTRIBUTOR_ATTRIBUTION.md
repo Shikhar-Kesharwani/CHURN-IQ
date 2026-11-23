@@ -23,13 +23,18 @@ These columns mean different things, so keep them separate:
 | **PR Owner** | The GitHub account that opened the pull request. | GitHub PR `user` |
 | **Recorded Git author** | The author identity stored in the commit. It is shown in full and is **not** changed by this report. | `git log` |
 
+**PR Owner, Merged by and Approved by identify a GitHub account, not the person using
+it.** Those fields show which account performed the action. They don't show who was
+operating the account at the time. At least one pull request in this repository was
+opened through AI-assisted development tools acting on a student's GitHub account.
+
 **"Student Responsible" is not a claim of personal Git authorship.** For several
 commits the Git author is an identity used by AI-assisted development tools, not a
 student account. Those rows say so in the Verification Evidence column.
 
-**Use of AI-assisted development tools:** both students used AI-assisted development
-tools. Every commit produced with them carries a co-author trailer in its commit
-message, and the evidence column flags each one. The Git records can't show how the
+**Use of AI-assisted development tools:** work on both students' tasks was produced
+with AI-assisted development tools, as the commit trailers and recorded Git author
+identities show. The evidence column flags each such commit. The Git records can't show how the
 work was split between a student and a tool inside a single commit. This report
 doesn't try to.
 
@@ -136,9 +141,10 @@ Rows are in chronological order. Abbreviations in the evidence column:
 - Each one is recorded with Aryan's own Git identity, linked to `aryan-guptta-2007`.
 - All six were produced with AI-assisted development tools, as their commit trailers show.
 
-**Personal GitHub activity that can be checked directly**
-- Merged PRs #1, #3 and #4 (merge commits `7d605c5`, `39c1aa2`, `4f414d2`).
-- Approved PRs #2, #3, #4 and #5. The approvals on #4 and #5 were submitted after those PRs had already merged.
+**Actions recorded under the student's GitHub account**
+- Account `aryan-guptta-2007` opened PR #1.
+- It merged PRs #1, #3 and #4 (merge commits `7d605c5`, `39c1aa2`, `4f414d2`).
+- It approved PRs #2, #3, #4 and #5. The approvals on #4 and #5 were submitted after those PRs had already merged.
 
 ### 4.2 Shikhar Kesharwani
 
@@ -156,10 +162,10 @@ Rows are in chronological order. Abbreviations in the evidence column:
 - Shikhar is credited as the student responsible through Jira assignment and PR ownership, not as the personal Git author.
 - `a9bb485` and `a79ba50` display Shikhar's name in the author field, but their email and GitHub link belong to the tool identity.
 
-**Personal GitHub activity that can be checked directly**
-- Merged PRs #2 and #5 (merge commits `54dcd92`, `eb7f75b`).
-- Approved PR #1 before it was merged.
-- Opened PRs #2 to #5.
+**Actions recorded under the student's GitHub account**
+- Account `Shikhar-Kesharwani` opened PRs #2 to #5.
+- It merged PRs #2 and #5 (merge commits `54dcd92`, `eb7f75b`).
+- It approved PR #1 before that PR was merged.
 
 ---
 
