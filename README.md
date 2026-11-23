@@ -12,10 +12,18 @@ ChurnIQ Pro provides actionable retention intelligence for subscription streamin
 CHURN-IQ/
 ├── backend/                              # FastAPI Backend & Machine Learning Engine
 │   ├── churniq_ml_pipeline.py            # Complete ML Pipeline (EDA, SMOTE, XGBoost, SHAP)
+│   ├── churniq_core.py                   # Shared features/encoding, risk, SHAP reasons, CLV (pipeline + API)
+│   ├── evaluate_model.py                 # Reproducible evaluation of the committed model (CHURN-14)
+│   ├── validate_shap.py                  # SHAP validation (CHURN-15)
+│   ├── model_experiments.py              # Controlled model-improvement experiments (CHURN-17)
+│   ├── generate_predictions.py           # Full-coverage predictions: held-out + out-of-fold (CHURN-37)
+│   ├── oof_fold_models.pkl               # 5 out-of-fold models used for training-customer predictions
+│   ├── tests/                            # pytest ML validation suite (run: python -m pytest)
+│   ├── requirements-dev.txt              # Training / test dependencies
 │   ├── customer_similarity.py            # KNN Customer Similarity Engine (Preprocessing & Inference)
 │   ├── main.py                           # REST API Server (Endpoints, Models, Gemini, Gmail SMTP)
 │   ├── ott_churn_dataset.csv             # Synthetic OTT Customer Dataset (5,001 rows, 22 columns)
-│   ├── customer_predictions.csv          # Precomputed XGBoost predictions & SHAP top reasons
+│   ├── customer_predictions.csv          # Predictions & SHAP reasons for all customers (prediction_source column)
 │   ├── churniq_model.pkl                 # Serialized XGBoost Churn Classification Model
 │   ├── feature_names.pkl                 # Serialized feature list for inference alignment
 │   ├── customer_similarity_model.joblib  # Serialized NearestNeighbors Model
@@ -47,6 +55,7 @@ CHURN-IQ/
 │   ├── vite.config.js                    # Vite bundler configuration
 │   └── README.md                         # Detailed frontend documentation
 │
+├── docs/ml/                              # ML validation reports (pipeline, evaluation, SHAP, CLV, research)
 ├── .gitignore                            # Root gitignore (ignores node_modules, dist, __pycache__, .env)
 └── README.md                             # Root Project Documentation
 ```

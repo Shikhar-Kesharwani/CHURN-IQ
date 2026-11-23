@@ -4,8 +4,10 @@ import { api } from '../api/churniq'
 import { Search, Eye, ChevronUp, ChevronDown } from 'lucide-react'
 
 function RiskBadge({ level }) {
-  const cls = level === 'HIGH' ? 'badge-high' : level === 'MEDIUM' ? 'badge-medium' : 'badge-low'
-  return <span className={cls}>{level}</span>
+  // NOT_SCORED = no out-of-sample model prediction (never shown as LOW)
+  const cls = level === 'HIGH' ? 'badge-high' : level === 'MEDIUM' ? 'badge-medium'
+            : level === 'LOW' ? 'badge-low' : 'badge-none'
+  return <span className={cls}>{level === 'NOT_SCORED' ? 'NOT SCORED' : level}</span>
 }
 
 function Sel({ value, onChange, options }) {
@@ -42,6 +44,8 @@ export default function RiskTable() {
     if (plan !== 'ALL') list = list.filter(c => c.plan_type  === plan)
     list.sort((a, b) => {
       const va = a[sort.key], vb = b[sort.key]
+      // Unscored customers (null churn_prob / clv_score) always sort last
+      if (va == null || vb == null) return va == null ? (vb == null ? 0 : 1) : -1
       return sort.dir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1)
     })
     return list
@@ -134,13 +138,13 @@ export default function RiskTable() {
                     <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text2)' }}>{c.customer_id}</td>
                     <td style={{ fontWeight: 500 }}>{c.name}</td>
                     <td style={{ fontWeight: 700,
-                      color: c.churn_prob > 0.7 ? 'var(--red)' : c.churn_prob > 0.4 ? 'var(--yellow)' : 'var(--green)'
+                      color: c.churn_prob == null ? 'var(--text2)' : c.churn_prob > 0.7 ? 'var(--red)' : c.churn_prob > 0.4 ? 'var(--yellow)' : 'var(--green)'
                     }}>
                       {c.churn_percent}
                     </td>
                     <td><RiskBadge level={c.risk_level} /></td>
                     <td style={{ color: 'var(--text2)', fontSize: 12 }}>{c.plan_type}</td>
-                    <td style={{ fontWeight: 600 }}>₹{Number(c.clv_score).toLocaleString()}</td>
+                    <td style={{ fontWeight: 600 }}>{c.clv_score == null ? 'N/A' : `₹${Number(c.clv_score).toLocaleString()}`}</td>
                     <td style={{ maxWidth: 200, color: 'var(--text2)', fontSize: 11 }}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
                         {c.top_reason_1?.split('[')[0]?.trim()}

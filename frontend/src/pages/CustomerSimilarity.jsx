@@ -10,8 +10,10 @@ import {
 const SAMPLE_IDS = ['CUST00001', 'CUST00002', 'CUST00003', 'CUST01033', 'CUST02039']
 
 function RiskBadge({ level }) {
-  const cls = level === 'HIGH' ? 'badge-high' : level === 'MEDIUM' ? 'badge-medium' : 'badge-low'
-  return <span className={cls}>{level}</span>
+  // NOT_SCORED = no out-of-sample model prediction (never shown as LOW)
+  const cls = level === 'HIGH' ? 'badge-high' : level === 'MEDIUM' ? 'badge-medium'
+            : level === 'LOW' ? 'badge-low' : 'badge-none'
+  return <span className={cls}>{level === 'NOT_SCORED' ? 'NOT SCORED' : level}</span>
 }
 
 function OutcomeBadge({ outcome }) {
@@ -260,7 +262,7 @@ export default function CustomerSimilarity() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>XGBoost Churn Risk</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: selected.risk_level === 'HIGH' ? 'var(--red)' : selected.risk_level === 'MEDIUM' ? 'var(--yellow)' : 'var(--green)' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: selected.risk_level === 'HIGH' ? 'var(--red)' : selected.risk_level === 'MEDIUM' ? 'var(--yellow)' : selected.risk_level === 'LOW' ? 'var(--green)' : 'var(--text2)' }}>
                     {selected.churn_percent}
                   </div>
                 </div>

@@ -1,0 +1,87 @@
+{
+  "artifact": "churniq_model.pkl (unchanged) for holdout_test + demo; 5 fold models (production recipe) for cv_out_of_fold",
+  "environment": {
+    "xgboost": "2.1.4",
+    "scikit_learn": "1.6.1",
+    "python": "3.13.18",
+    "platform": "Linux-6.18.44-fc-v726-x86_64-with-glibc2.39"
+  },
+  "oof": {
+    "n_splits": 5,
+    "seed": 42,
+    "recipe": "SMOTE (training folds only) + XGB_PARAMS (baseline/production)",
+    "fold_train_rows": [
+      3200,
+      3200,
+      3200,
+      3200,
+      3200
+    ]
+  },
+  "coverage": {
+    "customers_in_dataset": 5001,
+    "eligible": 5001,
+    "invalid_not_scored": {},
+    "scored": 5001,
+    "by_source": {
+      "cv_out_of_fold": 4000,
+      "holdout_test": 1000,
+      "demo": 1
+    },
+    "churn_prob_in_0_1": true,
+    "any_nan": false
+  },
+  "test_rows_identical_to_previous_csv": true,
+  "metrics_by_source": {
+    "holdout_test": {
+      "customers": 1000,
+      "roc_auc": 0.7167,
+      "brier": 0.2189,
+      "mean_predicted": 0.4509,
+      "observed_churn_rate": 0.431,
+      "risk_tiers": {
+        "HIGH": {
+          "customers": 249,
+          "mean_predicted": 0.8342,
+          "observed_churn_rate": 0.6988
+        },
+        "MEDIUM": {
+          "customers": 239,
+          "mean_predicted": 0.5451,
+          "observed_churn_rate": 0.5063
+        },
+        "LOW": {
+          "customers": 512,
+          "mean_predicted": 0.2205,
+          "observed_churn_rate": 0.2656
+        }
+      }
+    },
+    "cv_out_of_fold": {
+      "customers": 4000,
+      "roc_auc": 0.7462,
+      "brier": 0.2041,
+      "mean_predicted": 0.4475,
+      "observed_churn_rate": 0.4308,
+      "risk_tiers": {
+        "HIGH": {
+          "customers": 951,
+          "mean_predicted": 0.8458,
+          "observed_churn_rate": 0.7508
+        },
+        "MEDIUM": {
+          "customers": 1051,
+          "mean_predicted": 0.5442,
+          "observed_churn_rate": 0.491
+        },
+        "LOW": {
+          "customers": 1998,
+          "mean_predicted": 0.207,
+          "observed_churn_rate": 0.2467
+        }
+      }
+    }
+  },
+  "clv_formula_max_abs_error_vs_rounded_prob": 2.8084,
+  "tiers_consistent": true
+}
