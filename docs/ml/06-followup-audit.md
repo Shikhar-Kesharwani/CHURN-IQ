@@ -10,10 +10,10 @@ Every number below was measured in this audit. "Original" means `origin/main` at
 > | Item | Status | What changed |
 > |---|---|---|
 > | Bug A, interim (unscored customers) | ✅ Implemented | Unscored customers are returned as `scored: false`, `churn_prob: null`, `risk_level: "NOT_SCORED"`, `clv_score: null`, `clv_segment: "Unknown"`, never as 0 % / ₹0. `/whatif` and `/retention` return **409** with an explanation instead of 500. `/customers` lists and plan filters return 200. Dashboard and `/customers` summaries add `scored_customers` and `unscored_count`, so tier counts reconcile with the total. `high_risk_pct` is now a share of scored customers (5.0 % → 25.0 %). `/segments.by_clv` reports the 4,000 as `Unknown`. The similarity finder shows only model predictions ("Not scored" otherwise), with no fallback to the generator's probability, in-sample scoring or 0.5. The frontend shows a grey NOT SCORED badge and "N/A", and disables what-if and email for these customers, so it never triggers the client's fallback to the remote deployment. |
-> | Bug A, full fix (out-of-fold scoring) | ⏳ Open | Regenerating `customer_predictions.csv` changes production data and every KPI, so it needs separate approval. Tracked by a strict-xfail test. |
-> | Bug B (CUST99999) | ✅ Implemented | `main.py` scores demo customers with the model at startup: churn 0.9836, real SHAP reasons, CLV = `calc_clv` = ₹19.60. The hard-coded override is removed. `fix_cust99999.py` and `add_emails.py` now compute their values instead of typing them in. The committed CSV files were **not** modified. |
+> | Bug A, full fix (out-of-fold scoring) — **CHURN-37** | ✅ Implemented (approved) | `generate_predictions.py` scores all 5,001 eligible customers: 1,000 held-out (committed model, unchanged), 4,000 out-of-fold (production recipe, 5 folds) and 1 demo. Out-of-fold AUC is 0.746 vs 0.717 held-out. `/whatif` uses each customer's own scoring model. The NOT_SCORED fallback remains for invalid records. Details are in `04-clv-verification.md`. |
+> | Bug B (CUST99999) — **CHURN-38** | ✅ Implemented | The demo row in `customer_predictions.csv` is produced by the committed model: churn 0.9836, real SHAP reasons, CLV = `calc_clv` = ₹19.60. The hard-coded override is removed. `fix_cust99999.py` and `add_emails.py` compute their values. A Playwright check confirmed the frontend shows the same values as the API. |
 >
-> Tests: `backend/tests/test_unscored_and_demo_customers.py`. The frontend builds successfully (`npm run build`).
+> Tests: `backend/tests/test_prediction_coverage.py`. The frontend builds successfully (`npm run build`). `churniq_model.pkl` is unchanged.
 
 ---
 

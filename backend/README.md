@@ -316,6 +316,9 @@ Only genuine behavioral and subscription features from the dataset are used:
 pip install -r requirements-dev.txt
 python -m pytest
 
+# Regenerate predictions for all customers (held-out + out-of-fold, CHURN-37)
+python generate_predictions.py
+
 # 1. Run unit tests for similarity engine & KNN training
 #    (note: rewrites the committed *.joblib similarity artifacts)
 python test_similarity_engine.py

@@ -224,7 +224,7 @@ export default function CustomerDetail() {
                     <div style={{ height: '100%', width: `${pctBar}%`, background: colors[i], borderRadius: 2, transition: 'width 0.8s ease' }} />
                   </div>
                 </div>
-                {shap && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: colors[i], flexShrink: 0 }}>+{shap}</span>}
+                {shap && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: colors[i], flexShrink: 0 }}>{shap}</span>}
               </div>
             )
           })}

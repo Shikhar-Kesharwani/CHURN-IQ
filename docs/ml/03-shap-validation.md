@@ -22,6 +22,18 @@
 | Stored top-3 reasons = recomputed SHAP | ✅ 1000 / 1000. One customer (`CUST00173`) has only 2 positive features; the CSV stores `N/A`, which pandas reads as NaN, and the API renders it as "No significant risk factor identified". |
 | `GET /customer/{id}` reasons match SHAP | ✅ Tested for 20 customers across HIGH, MEDIUM and LOW |
 
+## All customers (after CHURN-37)
+
+Every customer's reasons are now checked against SHAP from **the model that produced its probability** (`python validate_shap.py`, `results/shap_validation.json`):
+
+| Source | Customers | Reasons match recomputed SHAP | Max additivity error |
+|---|---|---|---|
+| holdout_test (committed model) | 1,000 | 1,000 | 2.4×10⁻⁶ |
+| cv_out_of_fold (own fold model) | 4,000 | 4,000 | 3.1×10⁻⁶ |
+| demo (committed model) | 1 | 1 | 2.4×10⁻⁶ |
+
+**Display fix:** the Customer Detail page showed impacts as "++0.46", because it added a "+" to a value that already carried its sign. This was pre-existing on `main` and is now fixed.
+
 ## Worked examples (2 per risk level)
 
 Values are log-odds contributions; the top 4 by |SHAP| are shown. In every case `expected + Σ SHAP` equals the model margin exactly.

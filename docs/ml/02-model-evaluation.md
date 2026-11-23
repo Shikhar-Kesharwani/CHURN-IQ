@@ -8,6 +8,7 @@
 - **Dataset:** `backend/ott_churn_dataset.csv`, 5,000 rows. The demo row `CUST99999` is excluded because it was appended after training and was never part of the split.
 - **Test data:** the pipeline's held-out split, rebuilt exactly (`train_test_split(test_size=0.2, stratify=y, random_state=42)`). This is verified: the rebuilt test set is the same 1,000 customers stored in `customer_predictions.csv`, and the artifact reproduces the stored probabilities to within 5×10⁻⁵.
 - **Threshold:** 0.5, the value `model.predict` uses.
+- **Which rows:** only `prediction_source == 'holdout_test'` rows are evaluation data. Since CHURN-37, `customer_predictions.csv` also contains out-of-fold predictions for the 4,000 training customers (AUC 0.746, reported in `04-clv-verification.md`). Those come from fold models, not the committed artifact, and aren't mixed into these metrics.
 - **Uncertainty:** percentile 95% confidence intervals from 1,000 bootstrap resamples of the test set (seed 42).
 
 ## Class balance

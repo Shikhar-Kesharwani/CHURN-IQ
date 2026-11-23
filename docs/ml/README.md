@@ -7,19 +7,19 @@ Validation of the churn model, its explanations and the CLV logic. Covers Jira S
 | CHURN-13 Review XGBoost pipeline | [01-pipeline-review.md](01-pipeline-review.md) | `backend/churniq_ml_pipeline.py`, `backend/churniq_core.py` | `tests/test_pipeline_preprocessing.py` |
 | CHURN-14 Evaluate model performance | [02-model-evaluation.md](02-model-evaluation.md) | `backend/evaluate_model.py` | `tests/test_model_evaluation.py` |
 | CHURN-15 Validate SHAP explanations | [03-shap-validation.md](03-shap-validation.md) | `backend/validate_shap.py` | `tests/test_shap_validation.py` |
-| CHURN-16 Verify CLV calculation and tiers | [04-clv-verification.md](04-clv-verification.md) | `backend/churniq_core.py` | `tests/test_clv.py` |
+| CHURN-16 Verify CLV calculation and tiers | [04-clv-verification.md](04-clv-verification.md) | `backend/churniq_core.py`, `backend/generate_predictions.py` | `tests/test_clv.py`, `tests/test_prediction_coverage.py` |
 | CHURN-17 Model improvement research | [05-model-improvement-research.md](05-model-improvement-research.md) | `backend/model_experiments.py` | `tests/test_model_improvement.py` |
 
 | Follow-up audit (CHURN-16 bugs, re-verification, Git audit) | [06-followup-audit.md](06-followup-audit.md) | `backend/verify_model_improvement.py` | — |
 
-Machine-readable results are in [`results/`](results/): `evaluation_results.json`, `shap_validation.json`, `model_experiments.json` and `model_improvement_verification.json`.
+Machine-readable results are in [`results/`](results/): `evaluation_results.json`, `shap_validation.json`, `model_experiments.json`, `model_improvement_verification.json` and `prediction_coverage.json`.
 
 ## Headline findings
 
 - **Bug fixed: what-if predictions ignored every categorical feature.** A single-row `get_dummies(drop_first=True)` zeroed all 19 one-hot columns. A no-change `/whatif` moved churn probability by 0.157 on average and changed the risk tier for 327 of 1,000 customers. After the fix: Δ ≤ 0.0001 and 0 tier changes.
 - **Committed model on the held-out test set:** ROC-AUC **0.717**, accuracy 0.667, precision 0.623, recall 0.578, F1 0.599. The ceiling set by the data's own label noise is about 0.794.
 - **SHAP is computed correctly** (additivity error < 3×10⁻⁶). However, 47% of the explanation weight sits on features that don't drive churn. The plain-English reason text also contradicted customers' actual values (fixed).
-- **The CLV formula is correct.** Tier assignment was inconsistent between endpoints for 156 customers (fixed). 4,000 unscored customers show CLV ₹0 (open, needs a team decision).
+- **The CLV formula is correct.** Tier assignment was inconsistent between endpoints for 156 customers (fixed). **Every customer now has a genuine prediction:** 4,000 training customers are scored out-of-fold (AUC 0.746) instead of showing 0 % / ₹0 (CHURN-37), and the demo customer is model-scored (CHURN-38).
 - **A regularised XGBoost without SMOTE improves test ROC-AUC from 0.724 to 0.758** (paired 95% CI of the gain +0.018 to +0.052). It also improves calibration and cuts noise-driven explanations from 47% to 11%. It's available as `--model-config regularised`; the production artifact is unchanged pending team sign-off.
 
 ## How to run
@@ -59,7 +59,9 @@ The older script-style checks still run directly: `python test_api_endpoints.py`
 
 | Suite | Result |
 |---|---|
-| `python -m pytest` (new ML suite) | **85 passed**, 0 failed, 1 xfailed (Bug A full fix pending, `tests/test_unscored_and_demo_customers.py`) |
+| `python -m pytest` (new ML suite) | **95 passed**, 0 failed (incl. `tests/test_prediction_coverage.py`) |
+| `python generate_predictions.py` | 5,001 / 5,001 customers scored; byte-identical on re-run |
+| Playwright frontend parity (CUST99999, an out-of-fold customer) | gauge, CLV, tier, badge and reasons match the API; 0 requests to the remote fallback |
 | `npm run build` (frontend) | builds successfully (only the existing chunk-size advisory) |
 | `python test_api_endpoints.py` (existing) | passed |
 | `python test_similarity_engine.py` (existing, run in a copy of `backend/`) | passed |
@@ -71,7 +73,7 @@ Environment: Python 3.13, Linux. Pinned versions from `requirements.txt` (numpy 
 ## Open issues requiring a team decision
 
 1. Whether to adopt the `regularised` model for production. That means regenerating the committed artifacts and re-adding the demo customer (CHURN-17, rec. 1).
-2. Out-of-fold scoring for the 4,000 customers with no prediction (CHURN-16, Bug A full fix). The interim fix is in place: they're now reported as NOT_SCORED instead of 0 % / ₹0, and the HTTP 500s are gone. Bug B (the demo customer's hard-coded CLV and hand-written reasons) is fixed. See `06`.
+2. ~~Missing predictions (CHURN-37) and the demo customer (CHURN-38)~~ **Resolved:** all 5,001 customers now have genuine predictions (1,000 held-out, 4,000 out-of-fold, 1 demo). Dashboard KPIs change accordingly; see `04`.
 3. The operating threshold for "flag for retention", based on business costs (CHURN-17, rec. 3).
 4. Confirming the CLV business assumptions: past vs remaining tenure, the 6-month floor, and the ₹3k/₹8k tiers (CHURN-16).
 5. The committed model can't be reproduced bit-for-bit. Its booster records `seed: 0`, not the pipeline's 42, so its exact training provenance is unknown (CHURN-13; see `06` §6).
