@@ -17,6 +17,7 @@ from google.api_core import exceptions as gexc
 from main import RetentionResponse
 
 FAKE_KEY = 'AIzaFAKE_TEST_KEY_not_a_real_key'
+DEFAULT_MODEL = 'gemini-3.5-flash'
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 GOOD = {
@@ -102,7 +103,8 @@ def test_gemini_output_for_customers_across_risk_levels(api, client, gemini, ris
         body = r.json()
         _check_body(body, cid)
         assert body['ai_generated'] is True and body['fallback_reason'] is None
-        assert body['generated_by'] == main.GEMINI_MODEL_NAME == 'gemini-2.5-flash'
+        # generated_by reports the configured model (default gemini-3.5-flash)
+        assert body['generated_by'] == main.GEMINI_MODEL_NAME == DEFAULT_MODEL
         assert body['subject'] == GOOD['subject'] and body['actions'] == GOOD['actions']
         assert body['priority'] == 'HIGH'                   # normalised to upper case
         expected = main.PREDICTIONS_DF.set_index('customer_id').loc[cid, 'churn_prob']
@@ -214,21 +216,59 @@ def test_unknown_and_not_scored_customers_do_not_call_gemini(api, client, gemini
 
 
 # ── Start-up configuration (real module import in a subprocess) ──────────────
-@pytest.mark.parametrize('key,enabled', [(None, False), ('', False),
-                                         ('YOUR_GEMINI_API_KEY', False), (FAKE_KEY, True)])
-def test_startup_gemini_configuration(key, enabled):
-    env = {k: v for k, v in os.environ.items() if k != 'GEMINI_API_KEY'}
-    if key is not None:
-        env['GEMINI_API_KEY'] = key
-    code = ('import main, json; print("RESULT", json.dumps([main.GEMINI_ENABLED, '
-            'main.GEMINI_MODEL_NAME]))')
+def _import_main(env_overrides):
+    """Import main in a fresh interpreter; return its Gemini settings + stdout/stderr."""
+    env = {k: v for k, v in os.environ.items()
+           if k not in ('GEMINI_API_KEY', 'GEMINI_MODEL_NAME')}
+    env.update({k: v for k, v in env_overrides.items() if v is not None})
+    code = ('import main, json; m = main.GEMINI_MODEL; print("RESULT", json.dumps(['
+            'main.GEMINI_ENABLED, main.GEMINI_MODEL_NAME, '
+            'getattr(m, "model_name", None) if m is not None else None]))')
     proc = subprocess.run([sys.executable, '-c', code], cwd=BACKEND_DIR, env=env,
                           capture_output=True, text=True, timeout=180)
     assert proc.returncode == 0, proc.stderr[-2000:]
-    result = json.loads(proc.stdout.split('RESULT', 1)[1])
-    assert result == [enabled, 'gemini-2.5-flash']
+    return json.loads(proc.stdout.split('RESULT', 1)[1]), proc
+
+
+@pytest.mark.parametrize('key,enabled', [(None, False), ('', False),
+                                         ('YOUR_GEMINI_API_KEY', False), (FAKE_KEY, True)])
+def test_startup_gemini_configuration(key, enabled):
+    (got_enabled, model_name, client_model), proc = _import_main({'GEMINI_API_KEY': key})
+    assert got_enabled is enabled
+    assert model_name == DEFAULT_MODEL                      # default when not overridden
+    # The genai client is built with exactly that model (only when a key is set)
+    assert client_model == (f'models/{DEFAULT_MODEL}' if enabled else None)
     assert FAKE_KEY not in proc.stdout and FAKE_KEY not in proc.stderr
 
+
+@pytest.mark.parametrize('override,expected', [
+    (None, DEFAULT_MODEL),                     # unset
+    ('', DEFAULT_MODEL),                       # blank, e.g. copied from .env.example
+    ('   ', DEFAULT_MODEL),                    # whitespace only
+    ('gemini-test-override', 'gemini-test-override'),
+    ('  gemini-padded-name  ', 'gemini-padded-name'),       # surrounding whitespace stripped
+])
+def test_gemini_model_name_env_override(override, expected):
+    (enabled, model_name, client_model), proc = _import_main(
+        {'GEMINI_API_KEY': FAKE_KEY, 'GEMINI_MODEL_NAME': override})
+    assert enabled is True
+    assert model_name == expected
+    assert client_model == f'models/{expected}'             # client uses the selected model
+    assert FAKE_KEY not in proc.stdout and FAKE_KEY not in proc.stderr
+
+
+def test_generated_by_reports_an_overridden_model(api, client, gemini, risk_mix, monkeypatch):
+    monkeypatch.setattr(api[0], 'GEMINI_MODEL_NAME', 'gemini-test-override')
+    gemini(reply=json.dumps(GOOD))
+    body = client.get(f'/retention/{risk_mix[0]}').json()
+    assert body['ai_generated'] is True and body['generated_by'] == 'gemini-test-override'
+
+
+def test_fallback_never_claims_a_gemini_model(api, client, risk_mix, monkeypatch):
+    monkeypatch.setattr(api[0], 'GEMINI_ENABLED', False)
+    body = client.get(f'/retention/{risk_mix[0]}').json()
+    assert body['generated_by'] == 'rule-based-fallback'
+    assert body['generated_by'] != api[0].GEMINI_MODEL_NAME and body['ai_generated'] is False
 
 @pytest.mark.parametrize('reason,offer_fragment', [
     ('friction_score (impact: +2.10)', 'payment assistance'),
@@ -253,3 +293,31 @@ def test_every_rule_based_template_is_reachable_and_complete(api, client, monkey
     assert offer_fragment in body['suggested_offer']
     assert body['name'] in body['email'] and len(body['actions']) == 2
     assert body['ai_generated'] is False
+
+
+@pytest.mark.parametrize('model_name', [DEFAULT_MODEL, 'gemini-test-override'])
+def test_real_genai_client_sends_the_selected_model(api, client, risk_mix, monkeypatch, model_name):
+    """Drive the real google.generativeai GenerativeModel; only the transport is stubbed."""
+    import google.generativeai as genai
+    from google.ai import generativelanguage as glm
+    main = api[0]
+    sent = []
+
+    class Transport:
+        def generate_content(self, request, **kwargs):
+            sent.append((request, kwargs))
+            return glm.GenerateContentResponse(candidates=[glm.Candidate(
+                content=glm.Content(parts=[glm.Part(text=json.dumps(GOOD))], role='model'),
+                finish_reason=glm.Candidate.FinishReason.STOP)])
+
+    model = genai.GenerativeModel(model_name)
+    model._client = Transport()
+    monkeypatch.setattr(main, 'GEMINI_MODEL_NAME', model_name)
+    monkeypatch.setattr(main, 'GEMINI_MODEL', model)
+    monkeypatch.setattr(main, 'GEMINI_ENABLED', True)
+    body = client.get(f'/retention/{risk_mix[0]}').json()
+    assert len(sent) == 1
+    request, kwargs = sent[0]
+    assert request.model == f'models/{model_name}'           # model on the wire
+    assert kwargs.get('timeout') == main.GEMINI_TIMEOUT_SECONDS
+    assert body['ai_generated'] is True and body['generated_by'] == model_name

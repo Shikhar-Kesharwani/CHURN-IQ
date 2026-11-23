@@ -59,7 +59,7 @@ Every endpoint now declares a Pydantic `response_model`, so FastAPI validates ea
 | # | Inconsistency | Fix | Frontend impact |
 |---|---|---|---|
 | 1 | `/retention` `churn_prob` was a **percentage** (`99.6`); every other endpoint uses 0–1 (`0.9958`) | Now 0–1. Added `churn_percent` and `risk_level` (CHURN-42) | None. The frontend doesn't read this field |
-| 2 | `/retention` `generated_by` claimed `gemini-1.5-flash`; the code calls `gemini-2.5-flash` | Reports `GEMINI_MODEL_NAME` (CHURN-42) | None |
+| 2 | `/retention` `generated_by` claimed `gemini-1.5-flash` while a different model was called | Reports the configured `GEMINI_MODEL_NAME` (CHURN-42; configurable since the model fix, see §5.1) | None |
 | 3 | Fallback content identifiable only by `generated_by` | Added `ai_generated: bool` and `fallback_reason` | None (additive) |
 | 4 | 422 errors had a **list** in `detail`; every other error had a string | Every error: `detail` is a string, plus `error`, `status_code`, `errors[]` (CHURN-43) | **Fixes** `CustomerSimilarity.jsx`, which renders `data.detail` and couldn't render a list |
 | 5 | Unhandled errors were `text/plain` | JSON `ErrorResponse` with `request_id` | None |
@@ -142,11 +142,11 @@ Fields that are legitimately `null`: `churn_prob`, `clv_score`, `prediction_sour
 
 ## 5. Gemini retention API (CHURN-22)
 
-`GET /retention/{id}` builds a prompt from the customer's profile, model churn probability, CLV and top 3 SHAP reasons. It then calls Gemini (`gemini-2.5-flash`, timeout `GEMINI_TIMEOUT_SECONDS`, default 20 s) and validates the reply. On any failure it returns rule-based content that is **always labelled as fallback**.
+`GET /retention/{id}` builds a prompt from the customer's profile, model churn probability, CLV and top 3 SHAP reasons. It then calls Gemini (model `GEMINI_MODEL_NAME`, default `gemini-3.5-flash`; timeout `GEMINI_TIMEOUT_SECONDS`, default 20 s) and validates the reply. On any failure it returns rule-based content that is **always labelled as fallback**.
 
 | Scenario | Result | Test |
 |---|---|---|
-| 6 customers: 2 HIGH, 2 MEDIUM, 2 LOW; holdout + out-of-fold | 200, `ai_generated: true`, `generated_by: "gemini-2.5-flash"`, `fallback_reason: null`. The prompt contains that customer's churn % and all 3 SHAP reasons | `test_gemini_output_for_customers_across_risk_levels` |
+| 6 customers: 2 HIGH, 2 MEDIUM, 2 LOW; holdout + out-of-fold | 200, `ai_generated: true`, `generated_by` equal to the configured model (default `"gemini-3.5-flash"`), `fallback_reason: null`. The prompt contains that customer's churn % and all 3 SHAP reasons | `test_gemini_output_for_customers_across_risk_levels` |
 | Same 6 customers, **no API key** | 200, `generated_by: "rule-based-fallback"`, `ai_generated: false`, `fallback_reason: "gemini_not_configured"`, `priority == risk_level` | `test_missing_api_key_uses_labelled_rule_based_fallback` |
 | Timeout (`DeadlineExceeded`, `TimeoutError`) | labelled fallback, `gemini_timeout` | `test_upstream_failures_fall_back_without_crashing` |
 | Quota 429, 503, 403 bad key, network error, unexpected exception | labelled fallback, `gemini_api_error` | same |
@@ -160,21 +160,53 @@ Fields that are legitimately `null`: `churn_prob`, `clv_score`, `prediction_sour
 
 No API key is hard-coded. The key is read only from the `GEMINI_API_KEY` environment variable, and `.env` files are git-ignored.
 
-**Not verified: a live Gemini call.** It needs a real key, which is not available in this environment. Manual smoke test (run locally, do not commit the key):
+### 5.1 Gemini configuration
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `GEMINI_API_KEY` | *(unset)* | Google AI Studio key. Unset, empty or the placeholder `YOUR_GEMINI_API_KEY` disables Gemini, and every response is the labelled rule-based fallback. Read from the environment only; never commit it (`.env` files are git-ignored). |
+| `GEMINI_MODEL_NAME` | `gemini-3.5-flash` | Model used for `generate_content` and reported in `generated_by`. Surrounding whitespace is stripped; unset or blank falls back to the default. |
+| `GEMINI_TIMEOUT_SECONDS` | `20` | Upper bound on one Gemini call. |
+
+**Why the default is `gemini-3.5-flash`.** The project's direct Google REST API test showed that `gemini-2.5-flash` returns **404** for the project's API key, while `gemini-3.5-flash` generates content. Until the model fix, the name was hard-coded, so every call 404'd and the API silently served the rule-based fallback (`fallback_reason: "gemini_api_error"`).
+
+**To use a different model**, set the variable before starting the server. No code change is needed:
+
+```bash
+export GEMINI_MODEL_NAME=gemini-3.5-pro
+```
+
+On Render, add `GEMINI_MODEL_NAME` under the service's **Environment** settings next to `GEMINI_API_KEY`. At startup the server prints `✓ Gemini API configured — model <name>`; it never prints the key.
+
+Tests (`tests/test_retention_gemini.py`):
+- the default is `gemini-3.5-flash`
+- the override works, including blank and whitespace-only values
+- the real `google.generativeai` client sends `models/<selected model>` on the wire (only the network transport is stubbed)
+- `generated_by` always equals the configured model when Gemini output is used, and is never a model name for fallback content
+
+### 5.2 Manual live smoke test
+
+The automated tests mock Gemini, so a real call needs a valid key. Run this locally and never paste the key into chat, logs or commits. Reading it with `read -s` keeps it out of your shell history:
 
 ```bash
 cd backend
 ```
 
 ```bash
-GEMINI_API_KEY=<your key> uvicorn main:app --port 8000
+read -rs GEMINI_API_KEY && export GEMINI_API_KEY
 ```
 
 ```bash
-curl -s localhost:8000/retention/CUST00001 | python -m json.tool
+uvicorn main:app --port 8000
 ```
 
-Expect `"ai_generated": true` and `"generated_by": "gemini-2.5-flash"`. If you see `"fallback_reason"`, the server log names the cause.
+In a second terminal:
+
+```bash
+curl -s localhost:8000/retention/CUST00001 | python -c "import sys,json; d=json.load(sys.stdin); print({k: d[k] for k in ('generated_by','ai_generated','fallback_reason')})"
+```
+
+Expected on success: `{'generated_by': 'gemini-3.5-flash', 'ai_generated': True, 'fallback_reason': None}`, or your `GEMINI_MODEL_NAME` if you overrode it. If `ai_generated` is `False`, `fallback_reason` and the server log (redacted) give the cause. For example, `gemini_api_error` with a 404 in the log means the key can't access that model.
 
 ---
 
@@ -311,7 +343,7 @@ python test_api_endpoints.py
 python test_similarity_engine.py
 ```
 
-**Results (Python 3.10.13, this branch):** **345 passed, 0 failed, 0 skipped** (`python -m pytest`, 2 min 10 s). Both coverage runs below ran the full suite: 345 passed each time.
+**Results (Python 3.10.13):** **354 passed, 0 failed, 0 skipped** (`python -m pytest`, 1 min 52 s) after the Gemini model fix (`fix/gemini-model-config`). It was 345 when PR #2 merged; both coverage runs below were taken then, and 345 passed each time.
 
 | Suite | Tests |
 |---|---|
@@ -319,7 +351,7 @@ python test_similarity_engine.py
 | `tests/test_api_contracts.py` | 25 |
 | `tests/test_api_validation.py` | 117 |
 | `tests/test_api_errors.py` | 22 |
-| `tests/test_retention_gemini.py` | 38 |
+| `tests/test_retention_gemini.py` | 47 (38 at PR #2; +9 for model configuration) |
 | `tests/test_similarity_api.py` | 26 |
 | `tests/test_whatif_api.py` | 20 |
 | `test_api_endpoints.py`, `test_similarity_engine.py` (now collected by pytest) | 2 |
@@ -362,7 +394,7 @@ All six were found in this review, fixed on this branch, and linked to their sto
 
 ## 11. Known limitations and unresolved issues
 
-1. **No live Gemini test.** No API key was available. All Gemini paths are verified with a mock, and the manual smoke test is in §5.
+1. **No live Gemini test yet.** No API key was available in the CI/agent environment. The Gemini host is reachable and answers 403 without a key. All Gemini paths are verified with a mock and with the real client library (transport stubbed). Run the manual smoke test in §5.2 with a valid key before closing CHURN-22.
 2. **No live SMTP test.** SMTP was mocked; no email was sent.
 3. **`/send-email` has no authentication or rate limit** (noted on CHURN-44, out of scope). Anyone who can reach the API can trigger demo emails. The whole API is unauthenticated with `allow_origins=["*"]`.
 4. **What-If is not monotonic per customer** (§7). This is a model property for the E2/ML owners: consider XGBoost `monotone_constraints` or the regularised configuration from docs/ml/05.

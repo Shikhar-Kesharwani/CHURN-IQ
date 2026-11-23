@@ -342,9 +342,14 @@ except Exception as e:
 #   Or set as environment variable: export GEMINI_API_KEY="your_key_here"
 # ─────────────────────────────────────────────────────────────────────────────
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-# The model actually called. /retention reports this name in `generated_by`
-# (it previously claimed "gemini-1.5-flash" while calling 2.5-flash — CHURN-22).
-GEMINI_MODEL_NAME = "gemini-2.5-flash"
+# The model actually called. /retention reports this name in `generated_by`.
+# Override with the GEMINI_MODEL_NAME environment variable; an unset or blank
+# value falls back to the default. (gemini-2.5-flash returns 404 for the
+# project's API key; gemini-3.5-flash is the working default.)
+GEMINI_MODEL_NAME = (
+    os.environ.get("GEMINI_MODEL_NAME", "gemini-3.5-flash").strip()
+    or "gemini-3.5-flash"
+)
 # Upper bound on one Gemini call so a slow upstream cannot hang a request.
 try:
     GEMINI_TIMEOUT_SECONDS = float(os.environ.get("GEMINI_TIMEOUT_SECONDS", "20"))
@@ -358,7 +363,7 @@ if GEMINI_API_KEY and GEMINI_API_KEY != "YOUR_GEMINI_API_KEY":
         genai.configure(api_key=GEMINI_API_KEY)
         GEMINI_MODEL   = genai.GenerativeModel(GEMINI_MODEL_NAME)
         GEMINI_ENABLED = True
-        print("  ✓ Gemini API configured (AI retention emails enabled)")
+        print(f"  ✓ Gemini API configured — model {GEMINI_MODEL_NAME} (AI retention emails enabled)")
     except Exception as e:
         # Never log the exception text verbatim: it may echo the key.
         logger.error("Gemini configuration failed (%s) — /retention uses rule-based fallback",
@@ -1702,7 +1707,7 @@ RESPOND IN THIS EXACT JSON FORMAT (no extra text before or after, no markdown fe
         priority = str(gemini_data.get("priority", "")).strip().upper()
         return {
             **common,
-            "generated_by":    GEMINI_MODEL_NAME,   # was mislabelled "gemini-1.5-flash"
+            "generated_by":    GEMINI_MODEL_NAME,   # the configured model that produced it
             "ai_generated":    True,
             "fallback_reason": None,
             "subject":         gemini_data["subject"].strip(),
