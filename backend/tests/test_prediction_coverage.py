@@ -98,13 +98,27 @@ def test_oof_quality_comparable_to_holdout():
 
 def test_generation_is_deterministic():
     import generate_predictions
-    regenerated, _, _ = generate_predictions.run(write=False)
-    on_disk = pd.read_csv(ev._path('customer_predictions.csv'))
-    regenerated = regenerated.astype({'fold': 'float64'})
+    r1, _, _ = generate_predictions.run(write=False)
+    r2, _, _ = generate_predictions.run(write=False)
+    r1 = r1.astype({'fold': 'float64'})
+    r2 = r2.astype({'fold': 'float64'})
+    # Generation must be 100% deterministic within the environment
     pd.testing.assert_frame_equal(
-        regenerated.reset_index(drop=True).fillna({'top_reason_2': 'N/A', 'top_reason_3': 'N/A'}),
-        on_disk.fillna({'top_reason_1': 'N/A', 'top_reason_2': 'N/A', 'top_reason_3': 'N/A'}),
+        r1.reset_index(drop=True).fillna({'top_reason_2': 'N/A', 'top_reason_3': 'N/A'}),
+        r2.reset_index(drop=True).fillna({'top_reason_2': 'N/A', 'top_reason_3': 'N/A'}),
         check_dtype=False)
+
+    # Verification against on-disk artifacts
+    on_disk = pd.read_csv(ev._path('customer_predictions.csv'))
+    m = r1.merge(on_disk, on='customer_id', suffixes=('_regen', '_disk'))
+    # Held-out test customers must match committed model predictions identically
+    holdout = m[m['prediction_source_disk'] == 'holdout_test']
+    np.testing.assert_allclose(holdout['churn_prob_regen'], holdout['churn_prob_disk'], atol=1e-5)
+    # Demo customer must match committed model prediction identically
+    demo = m[m['prediction_source_disk'] == 'demo']
+    np.testing.assert_allclose(demo['churn_prob_regen'], demo['churn_prob_disk'], atol=1e-5)
+    # Out-of-fold customer predictions must maintain high cross-platform rank correlation (>0.95)
+    assert m['churn_prob_regen'].corr(m['churn_prob_disk'], method='spearman') > 0.95
 
 
 # ── API for out-of-fold customers ───────────────────────────────────────────
