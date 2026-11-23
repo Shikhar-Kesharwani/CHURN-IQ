@@ -109,6 +109,42 @@ def encode_features(df: pd.DataFrame,
     return out
 
 
+REQUIRED_NUMERIC = {
+    'age': (0, 120), 'monthly_charge': (0, None), 'tenure_months': (0, None),
+    'watch_hours_per_week': (0, 168), 'num_profiles': (0, None),
+    'logins_last_30_days': (0, None), 'last_login_days_ago': (0, None),
+    'payment_failures_3m': (0, None), 'support_tickets': (0, None),
+}
+
+
+def validate_raw_record(record) -> List[str]:
+    """
+    Problems that make a raw customer record unprocessable by the model
+    (CHURN-37). An empty list means the record is eligible for scoring.
+    Ineligible records are left unscored (NOT_SCORED / Unknown), never
+    given a made-up probability.
+    """
+    problems = []
+    for col, (lo, hi) in REQUIRED_NUMERIC.items():
+        v = record.get(col) if hasattr(record, 'get') else None
+        if _is_missing(v):
+            problems.append(f'{col} missing')
+            continue
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            problems.append(f'{col} not numeric')
+            continue
+        if not math.isfinite(v) or v < lo or (hi is not None and v > hi):
+            problems.append(f'{col} out of range ({v})')
+    if record.get('plan_type') not in PLAN_ORDER:
+        problems.append(f"plan_type invalid ({record.get('plan_type')!r})")
+    for col, levels in CATEGORY_LEVELS.items():
+        if record.get(col) not in levels:
+            problems.append(f'{col} invalid ({record.get(col)!r})')
+    return problems
+
+
 def build_model_matrix(df: pd.DataFrame):
     """Return (X, y) for training from the raw dataset table."""
     y = df[TARGET_COL].astype(int)

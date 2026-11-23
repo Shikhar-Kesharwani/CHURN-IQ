@@ -658,6 +658,65 @@ def build_predictions(df: pd.DataFrame, X_test: pd.DataFrame, y_test: pd.Series,
 
 
 # =============================================================================
+#   PART H2 — OUT-OF-FOLD PREDICTIONS FOR TRAINING CUSTOMERS (CHURN-37)
+# =============================================================================
+# The production model was trained on the 4,000 training customers, so its
+# predictions for them are in-sample and badly over-confident (AUC 0.958 vs
+# 0.717 on unseen data). Instead each training customer is scored by a model
+# that never saw them: 5-fold stratified CV over the training split, the SAME
+# recipe as production (SMOTE inside the training folds only + XGB_PARAMS),
+# predicting the held-out fold. SHAP reasons come from that fold's own model.
+# The fold models are saved so live what-if calls for these customers use the
+# same model that produced their displayed probability.
+#
+# The generator's 'churn_probability' column is never used as a prediction.
+# =============================================================================
+
+OOF_N_SPLITS = 5
+
+
+def oof_folds(X_train: pd.DataFrame, y_train: pd.Series, n_splits: int = OOF_N_SPLITS,
+              seed: int = SEED):
+    from sklearn.model_selection import StratifiedKFold
+    return list(StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+                .split(X_train, y_train))
+
+
+def build_oof_predictions(df: pd.DataFrame, X_train: pd.DataFrame, y_train: pd.Series,
+                          model_config: str = 'baseline', n_splits: int = OOF_N_SPLITS,
+                          seed: int = SEED):
+    """Return (predictions DataFrame for all training customers, list of fold models)."""
+    cfg = MODEL_CONFIGS[model_config]
+    parts, models = [], []
+    for fold, (tr, va) in enumerate(oof_folds(X_train, y_train, n_splits, seed)):
+        X_fit, y_fit = X_train.iloc[tr], y_train.iloc[tr]
+        if cfg['smote']:
+            X_fit, y_fit = apply_smote(X_fit, y_fit, seed)
+        fold_model = train_model(X_fit, y_fit, cfg['xgb_params'])
+        X_val, y_val = X_train.iloc[va], y_train.iloc[va]
+        prob = fold_model.predict_proba(X_val)[:, 1]
+        _, shap_values = compute_shap(fold_model, X_val)
+        part = build_predictions(df, X_val, y_val, prob, shap_values)
+        part['prediction_source'] = 'cv_out_of_fold'
+        part['fold'] = fold
+        parts.append(part)
+        models.append(fold_model)
+    return pd.concat(parts, ignore_index=True), models
+
+
+def finalise_predictions(*parts: pd.DataFrame) -> pd.DataFrame:
+    """Combine prediction parts into the customer_predictions.csv layout (deterministic order)."""
+    out = pd.concat(parts, ignore_index=True)
+    out['fold'] = out['fold'].astype('Int64')
+    cols = ['customer_id', 'churn_prob', 'risk_level', 'top_reason_1', 'top_reason_2',
+            'top_reason_3', 'clv_score', 'actual_churn', 'prediction_source', 'fold']
+    out = out[cols].sort_values(['churn_prob', 'customer_id'], ascending=[False, True],
+                                kind='mergesort').reset_index(drop=True)
+    assert out['customer_id'].is_unique, 'duplicate customer_id in predictions'
+    return out
+
+
+# =============================================================================
 #   MAIN
 # =============================================================================
 
@@ -717,9 +776,20 @@ def main(output_dir: str = 'pipeline_outputs', make_plots: bool = True,
         save_shap_plots(explainer, shap_values, X_test, prob, output_dir)
 
     print("\n  PART H — PREDICTIONS TABLE")
-    pred_df = build_predictions(df, X_test, y_test, prob, shap_values)
+    test_df = build_predictions(df, X_test, y_test, prob, shap_values)
+    test_df['prediction_source'] = 'holdout_test'
+    test_df['fold'] = pd.NA
+
+    print("\n  PART H2 — OUT-OF-FOLD PREDICTIONS (training customers)")
+    oof_df, fold_models = build_oof_predictions(df, X_train, y_train, model_config)
+    with open(out('oof_fold_models.pkl'), 'wb') as f:
+        pickle.dump({'models': fold_models, 'feature_names': list(X.columns),
+                     'model_config': model_config, 'n_splits': OOF_N_SPLITS, 'seed': SEED}, f)
+
+    pred_df = finalise_predictions(test_df, oof_df)
     pred_df.to_csv(out('customer_predictions.csv'), index=False)
-    print(f"    {len(pred_df)} predictions → {out('customer_predictions.csv')}")
+    print(f"    {len(pred_df)} predictions ({len(test_df)} held-out test + {len(oof_df)} "
+          f"out-of-fold) → {out('customer_predictions.csv')}")
     print("\n  PIPELINE COMPLETE")
     return metrics
 
