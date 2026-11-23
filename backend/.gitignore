@@ -19,3 +19,8 @@ email_config.json
 # ML pipeline outputs (python churniq_ml_pipeline.py)
 pipeline_outputs/
 .pytest_cache/
+
+# Test coverage data (pytest --cov)
+.coverage
+.coverage.*
+htmlcov/
