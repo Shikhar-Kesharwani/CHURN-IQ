@@ -74,7 +74,8 @@ def test_split_is_disjoint_stratified_and_matches_stored_predictions(artifacts):
     assert len(X_train) == 4000 and len(X_test) == 1000
     assert abs(artifacts['y_train'].mean() - artifacts['y_test'].mean()) < 0.005
     test_ids = set(artifacts['base'].loc[X_test.index, 'customer_id'])
-    stored = set(artifacts['predictions']['customer_id']) - pipeline.DEMO_CUSTOMER_IDS
+    preds = artifacts['predictions']
+    stored = set(preds.loc[preds['prediction_source'] == 'holdout_test', 'customer_id'])
     assert test_ids == stored
 
 

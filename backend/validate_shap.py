@@ -76,7 +76,7 @@ def run(write=True):
     }
 
     # 3. Stored reasons vs recomputed
-    stored = predictions.fillna('N/A').set_index('customer_id')
+    stored = predictions.fillna({f'top_reason_{k}': 'N/A' for k in (1, 2, 3)}).set_index('customer_id')
     matches, mismatches = 0, []
     for i, cid in enumerate(ids):
         rec = core.get_top_shap_reasons(sv[i], cols)
@@ -89,6 +89,47 @@ def run(write=True):
     reasons_check = {'customers': len(ids), 'match': matches, 'mismatched_ids': mismatches[:20],
                      'note': "customer_predictions.csv stores 'N/A'; pandas reads it as NaN "
                              "(compare after fillna('N/A'))."}
+
+    # 3b. Out-of-fold and demo rows (CHURN-37): each row's SHAP must come from
+    # the model that produced its probability — the fold model / committed model.
+    by_source = {'holdout_test': {'customers': len(ids), 'reasons_match': matches,
+                                  'max_additivity_error': additivity[
+                                      'max_abs_error_expected_plus_sum_shap_vs_margin']}}
+    if 'prediction_source' in predictions.columns:
+        import pickle
+        with open(ev._path('oof_fold_models.pkl'), 'rb') as f:
+            fold_models = pickle.load(f)['models']
+        full_X = core.encode_features(dataset, feature_names)
+        full_X.index = dataset['customer_id'].values
+
+        def check(model_, cids):
+            Xc = full_X.loc[cids]
+            exp_, sv_ = compute(model_, Xc)[1:][::-1]
+            marg = model_.predict(Xc, output_margin=True)
+            p_ = model_.predict_proba(Xc)[:, 1]
+            ok = 0
+            for j, cid in enumerate(cids):
+                rec = core.get_top_shap_reasons(sv_[j], list(feature_names))
+                rec += ['N/A'] * (3 - len(rec))
+                ok += rec == [stored.loc[cid, f'top_reason_{k}'] for k in (1, 2, 3)]
+            return (ok, float(np.abs(exp_ + sv_.sum(axis=1) - marg).max()),
+                    float(np.abs(np.round(p_, 4) - stored.loc[cids, 'churn_prob'].values).max()))
+
+        oof = stored[stored['prediction_source'] == 'cv_out_of_fold']
+        tot_ok, worst_add, worst_p = 0, 0.0, 0.0
+        for fold, grp in oof.groupby('fold'):
+            ok, add_err, p_err = check(fold_models[int(fold)], list(grp.index))
+            tot_ok += ok
+            worst_add, worst_p = max(worst_add, add_err), max(worst_p, p_err)
+        by_source['cv_out_of_fold'] = {'customers': int(len(oof)), 'reasons_match': int(tot_ok),
+                                       'max_additivity_error': worst_add,
+                                       'max_prob_diff_vs_csv': worst_p}
+        demo_ids = list(stored[stored['prediction_source'] == 'demo'].index)
+        if demo_ids:
+            ok, add_err, p_err = check(model, demo_ids)
+            by_source['demo'] = {'customers': len(demo_ids), 'reasons_match': int(ok),
+                                 'max_additivity_error': add_err, 'max_prob_diff_vs_csv': p_err}
+    reasons_check['by_source'] = by_source
 
     # 4. Global importance + plausibility
     imp = pd.Series(np.abs(sv).mean(axis=0), index=cols).sort_values(ascending=False)

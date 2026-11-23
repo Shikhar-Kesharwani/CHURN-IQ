@@ -18,7 +18,26 @@
     "customers": 1000,
     "match": 1000,
     "mismatched_ids": [],
-    "note": "customer_predictions.csv stores 'N/A'; pandas reads it as NaN (compare after fillna('N/A'))."
+    "note": "customer_predictions.csv stores 'N/A'; pandas reads it as NaN (compare after fillna('N/A')).",
+    "by_source": {
+      "holdout_test": {
+        "customers": 1000,
+        "reasons_match": 1000,
+        "max_additivity_error": 2.384185791015625e-06
+      },
+      "cv_out_of_fold": {
+        "customers": 4000,
+        "reasons_match": 4000,
+        "max_additivity_error": 3.0994415283203125e-06,
+        "max_prob_diff_vs_csv": 2.975463864185457e-08
+      },
+      "demo": {
+        "customers": 1,
+        "reasons_match": 1,
+        "max_additivity_error": 2.384185791015625e-06,
+        "max_prob_diff_vs_csv": 2.0408630341250955e-08
+      }
+    }
   },
   "global_importance_plausibility": {
     "top10_mean_abs_shap": [

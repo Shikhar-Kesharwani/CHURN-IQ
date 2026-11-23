@@ -170,7 +170,8 @@ print(f"  ✓ {len(DATASET_DF)} customers loaded")
 # suffixes=('_raw', '') → if column exists in both, predictions version wins
 FULL_DF = DATASET_DF.merge(
     PREDICTIONS_DF[['customer_id', 'churn_prob', 'risk_level',
-                    'top_reason_1', 'top_reason_2', 'top_reason_3', 'clv_score']],
+                    'top_reason_1', 'top_reason_2', 'top_reason_3', 'clv_score',
+                    'prediction_source', 'fold']],
     on='customer_id',
     how='left',
     suffixes=('_raw', '')
@@ -179,10 +180,8 @@ FULL_DF = DATASET_DF.merge(
 # ── CLV tier consistency (CHURN-16) ──────────────────────────────────────────
 # The dataset's clv_segment was computed from the GENERATOR's true churn
 # probability, while clv_score above comes from the MODEL's probability.
-# For scored customers, re-derive the tier from the model CLV so that
-# /segments, /dashboard/summary and /customer/{id} all agree.
-# Customers without a model prediction keep the dataset tier (see
-# docs/ml/04-clv-verification.md — open issue: unscored customers).
+# Re-derive the tier from the model CLV so /segments, /dashboard/summary and
+# /customer/{id} all agree. Unscored customers get 'Unknown' (below).
 _has_model_clv = FULL_DF['clv_score'].notna()
 FULL_DF.loc[_has_model_clv, 'clv_segment'] = (
     FULL_DF.loc[_has_model_clv, 'clv_score'].map(churniq_core.get_clv_segment)
@@ -195,42 +194,39 @@ print(f"\n  Merged dataset shape: {FULL_DF.shape}")
 FEATURE_MATRIX = churniq_core.encode_features(DATASET_DF, FEATURE_NAMES)
 FEATURE_MATRIX.index = DATASET_DF['customer_id'].values
 
-# ── Demo customers scored by the model, not hand-typed (Bug B) ───────────────
-# CUST99999 was appended by add_emails.py / fix_cust99999.py with a hand-set
-# churn probability (0.96), hard-coded CLV (₹500) and SHAP "reasons" copied
-# from an illustrative comment. At startup we replace those in-memory values
-# with the model's own prediction, real TreeExplainer SHAP reasons and the
-# verified CLV formula. The committed CSV files are not modified.
-DEMO_CUSTOMER_IDS = {'CUST99999'}
+# ── Out-of-fold models (CHURN-37) ────────────────────────────────────────────
+# customer_predictions.csv (generate_predictions.py) covers every eligible
+# customer. Training-split customers are scored out-of-fold: their probability
+# comes from the fold model that did NOT see them. Live what-if calls must use
+# that same fold model — the production MODEL is in-sample for them
+# (over-confident), so mixing the two would recreate a train/serve mismatch.
+# Held-out test and demo customers use the production MODEL.
+FOLD_MODELS = None
+try:
+    with open(find_file('oof_fold_models.pkl'), 'rb') as f:
+        _oof = pickle.load(f)
+    assert list(_oof['feature_names']) == list(FEATURE_NAMES), 'fold model feature mismatch'
+    FOLD_MODELS = _oof['models']
+    print(f"  ✓ {len(FOLD_MODELS)} out-of-fold models loaded")
+except FileNotFoundError:
+    print("  ⚠ oof_fold_models.pkl not found — what-if unavailable for out-of-fold customers")
 
 
-def _score_demo_customers():
-    import shap
-    demo_ids = [c for c in DEMO_CUSTOMER_IDS if c in set(FULL_DF['customer_id'])]
-    if not demo_ids:
-        return
-    explainer = shap.TreeExplainer(MODEL)
-    for cid in demo_ids:
-        idx = FULL_DF.index[FULL_DF['customer_id'] == cid][0]
-        X = FEATURE_MATRIX.loc[[cid]]
-        prob = float(MODEL.predict_proba(X)[0][1])
-        reasons = churniq_core.get_top_shap_reasons(explainer.shap_values(X)[0], FEATURE_NAMES)
-        reasons += ['N/A'] * (3 - len(reasons))
-        clv = churniq_core.calc_clv(FULL_DF.at[idx, 'monthly_charge'], FULL_DF.at[idx, 'tenure_months'], prob)
-        FULL_DF.loc[idx, ['churn_prob', 'risk_level', 'clv_score', 'clv_segment',
-                          'top_reason_1', 'top_reason_2', 'top_reason_3']] = [
-            round(prob, 4), churniq_core.get_risk_level(prob), clv,
-            churniq_core.get_clv_segment(clv), *reasons]
+def model_for(row):
+    """The model that produced this customer's displayed probability, or None."""
+    if row.get('prediction_source') == 'cv_out_of_fold':
+        fold = row.get('fold')
+        if FOLD_MODELS is None or fold is None or pd.isna(fold):
+            return None
+        return FOLD_MODELS[int(fold)]
+    return MODEL
 
 
-_score_demo_customers()
-
-# ── Unscored customers (Bug A, interim fix) ──────────────────────────────────
-# customer_predictions.csv only covers the 20% test split. The other customers
-# (the training split) have NO out-of-sample prediction. They must not be shown
-# as 0 % risk / ₹0 CLV, and must not inherit the generator's true-probability
-# tier. They are reported as NOT_SCORED / Unknown until out-of-fold
-# predictions are generated (see docs/ml/06-followup-audit.md).
+# ── Unscored customers (CHURN-37 fallback) ───────────────────────────────────
+# Every eligible customer now has a prediction. Records that fail
+# churniq_core.validate_raw_record (or are absent from the predictions file)
+# remain explicitly NOT_SCORED / Unknown — never 0 % risk or ₹0 CLV, and never
+# the generator's true-probability tier.
 NOT_SCORED        = 'NOT_SCORED'
 NOT_SCORED_TEXT   = 'Not scored'
 NOT_SCORED_REASON = 'Not scored — no out-of-sample model prediction is available for this customer'
@@ -801,8 +797,7 @@ def get_customer_detail(customer_id: str):
 
     return {
         "scored":            scored,
-        "prediction_source": (('demo_live_model' if cid in DEMO_CUSTOMER_IDS else 'holdout_test')
-                              if scored else None),
+        "prediction_source": str(row['prediction_source']) if scored else None,
         # ── Identity ────────────────────────────────
         "customer_id":    str(row['customer_id']),
         "name":           str(row.get('name', '')),
@@ -905,6 +900,14 @@ def what_if_simulation(request: WhatIfRequest):
             detail=f"Customer '{request.customer_id}' has no out-of-sample churn prediction "
                    f"(not scored by the model), so a what-if comparison is unavailable."
         )
+    scoring_model = model_for(row.iloc[0])
+    if scoring_model is None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Customer '{request.customer_id}' was scored out-of-fold, but the fold "
+                   f"models (oof_fold_models.pkl) are not available, so a consistent "
+                   f"what-if comparison cannot be made."
+        )
     customer_data = row.iloc[0].to_dict()
 
     # Apply overrides — only change what was explicitly sent
@@ -927,7 +930,9 @@ def what_if_simulation(request: WhatIfRequest):
         feature_df = build_feature_row(customer_data)
         # predict_proba returns shape (1, 2) → [[prob_class_0, prob_class_1]]
         # prob_class_1 = probability of churning
-        new_prob = float(MODEL.predict_proba(feature_df)[0][1])
+        # CHURN-37: use the model that produced the displayed probability
+        # (fold model for out-of-fold customers, production MODEL otherwise)
+        new_prob = float(scoring_model.predict_proba(feature_df)[0][1])
     except Exception as e:
         raise HTTPException(
             status_code=500,

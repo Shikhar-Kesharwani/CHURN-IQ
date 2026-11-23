@@ -110,7 +110,12 @@ def run(write=True):
     assert list(X.columns) == list(feature_names), 'feature order mismatch'
     test_ids = base.loc[X_test.index, 'customer_id']
     stored = predictions.set_index('customer_id')
-    stored_real = stored.drop(index=[i for i in pipeline.DEMO_CUSTOMER_IDS if i in stored.index])
+    # Only the held-out test rows are evaluation data (CHURN-37 added
+    # out-of-fold rows for training customers and a demo row).
+    if 'prediction_source' in stored.columns:
+        stored_real = stored[stored['prediction_source'] == 'holdout_test']
+    else:
+        stored_real = stored.drop(index=[i for i in pipeline.DEMO_CUSTOMER_IDS if i in stored.index])
     split_matches = set(test_ids) == set(stored_real.index)
 
     prob = model.predict_proba(X_test)[:, 1]

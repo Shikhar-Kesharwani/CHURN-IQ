@@ -38,4 +38,13 @@ def api():
 @pytest.fixture(scope='session')
 def scored_ids(api):
     main, _ = api
-    return [c for c in main.PREDICTIONS_DF['customer_id'] if c != 'CUST99999']
+    # Held-out test customers (scored by the committed production model)
+    p = main.PREDICTIONS_DF
+    return list(p.loc[p['prediction_source'] == 'holdout_test', 'customer_id'])
+
+
+@pytest.fixture(scope='session')
+def oof_ids(api):
+    # Training customers scored out-of-fold (CHURN-37)
+    p = api[0].PREDICTIONS_DF
+    return list(p.loc[p['prediction_source'] == 'cv_out_of_fold', 'customer_id'])

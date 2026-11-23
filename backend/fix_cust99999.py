@@ -9,8 +9,8 @@ comment. It now computes every value from the trained model:
   - top reasons = real SHAP TreeExplainer values
   - clv_score   = churniq_core.calc_clv (verified formula)
 
-main.py also scores demo customers live at startup, so the API is correct even
-if this script has not been re-run.
+generate_predictions.py also scores demo customers (prediction_source 'demo'),
+so re-running that script is the preferred way to refresh all predictions.
 
 Run from backend/ (after add_emails.py):   python fix_cust99999.py
 """
@@ -48,10 +48,14 @@ new_row = {
     'top_reason_3': reasons[2],
     'clv_score':    core.calc_clv(row['monthly_charge'], row['tenure_months'], prob),
     'actual_churn': int(row['churn']),
+    'prediction_source': 'demo',   # CHURN-37 column: scored by the production model
+    'fold': pd.NA,
 }
 
 pred = pd.read_csv('customer_predictions.csv')
 pred = pred[pred['customer_id'] != DEMO_ID]
 pred = pd.concat([pred, pd.DataFrame([new_row])], ignore_index=True)
+pred['fold'] = pred['fold'].astype('Int64')
+assert pred['customer_id'].is_unique, 'duplicate customer_id after adding demo row'
 pred.to_csv('customer_predictions.csv', index=False)
 print(f'Done! {DEMO_ID} scored by the model: {new_row}')
