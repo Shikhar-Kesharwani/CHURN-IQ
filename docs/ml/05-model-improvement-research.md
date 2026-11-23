@@ -75,7 +75,7 @@ Lowering the threshold to about 0.32 lets model F catch **80% of churners instea
 | # | Recommendation | Expected benefit | Drawbacks / risks | Complexity | Status |
 |---|---|---|---|---|---|
 | 1 | **Adopt the regularised XGBoost without SMOTE (config F)** for production | +0.034 test AUC (CI +0.018 to +0.052), better calibration, explanations far less driven by noise | All API numbers change (probabilities, risk tiers, CLV, KPIs). The demo row must be re-added. Frontend copy that quotes metrics should be checked. | Low: `python churniq_ml_pipeline.py --model-config regularised --output-dir .`, then re-run `add_emails.py` / `fix_cust99999.py` | **Implemented as an option** (`MODEL_CONFIGS['regularised']`); the production artifact is **not replaced**. Needs team sign-off. |
-| 2 | **Score all customers with out-of-fold predictions** | Removes the 4,000 customers showing 0% risk and ₹0 CLV (CHURN-16 open issue 1) | Dashboard KPIs change substantially | Medium | Proposed |
+| 2 | **Score all customers with out-of-fold predictions** | Removes the 4,000 customers showing 0% risk and ₹0 CLV (CHURN-16 open issue 1) | Dashboard KPIs change substantially | Medium | **Implemented** (CHURN-37, `generate_predictions.py`) |
 | 3 | **Decide the operating threshold from business costs** (cost of an offer vs CLV lost) | Up to +21 points of recall at ~0.32 | More false-alarm offers | Low, once costs are known | Needs product input |
 | 4 | Consider dropping demographic/preference features (config G) | Same AUC, half the features, the cleanest explanations | May drop real signal in production data. Re-test on real data first. | Low | Not recommended until real data is available |
 | 5 | Probability calibration (isotonic or Platt on a validation fold) | More accurate CLV and revenue-at-risk | Adds a component; little gain once #1 is adopted | Medium | Optional |
@@ -85,6 +85,7 @@ Lowering the threshold to about 0.32 lets model F catch **80% of churners instea
 ## Implemented
 
 - `churniq_ml_pipeline.MODEL_CONFIGS` has `'baseline'` (the default, unchanged) and `'regularised'` (config F), selected with `--model-config`. Running the regularised config reproduces this report's numbers: test AUC 0.7581, F1 0.6342.
+- **Full prediction coverage via out-of-fold predictions (CHURN-37)**: Implemented in `generate_predictions.py` and `oof_fold_models.pkl`. All 5,001 customers are scored (1,000 held-out test customers via committed model, 4,000 training customers via 5-fold cross-validation out-of-fold, and CUST99999 via committed model). Customer predictions and live what-if serving both utilize these models with full coverage.
 - `backend/model_experiments.py` runs the full experiment.
 - `backend/tests/test_model_improvement.py` guards the baseline vs regularised comparison and the recorded results.
 
