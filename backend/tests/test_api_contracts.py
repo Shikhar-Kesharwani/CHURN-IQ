@@ -155,6 +155,24 @@ def test_segments_contract(client):
     assert len(body['monthly_trend']) == 12
 
 
+def test_segments_revenue_at_risk_per_plan(client, api):
+    """CHURN-53: the Segments page shows per-plan revenue at risk from the API.
+
+    Each plan's value is monthly_charge × churn_prob summed over that plan's
+    customers (unscored customers add nothing), and the plans add up to
+    overall.total_revenue_at_risk.
+    """
+    body = client.get('/segments').json()
+    df = api[0].FULL_DF
+    for row in body['by_plan']:
+        assert isinstance(row['revenue_at_risk'], float)
+        part = df[df['plan_type'] == row['plan_type']]
+        expected = float((part['monthly_charge'] * part['churn_prob']).sum())
+        assert row['revenue_at_risk'] == pytest.approx(expected, abs=0.01)
+    total = sum(r['revenue_at_risk'] for r in body['by_plan'])
+    assert total == pytest.approx(body['overall']['total_revenue_at_risk'], abs=0.05)
+
+
 def test_segments_trend_is_deterministic_and_leaves_global_rng_alone(client):
     import numpy as np
     np.random.seed(123)
