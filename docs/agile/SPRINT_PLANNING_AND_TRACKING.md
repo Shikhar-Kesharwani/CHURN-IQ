@@ -28,6 +28,7 @@ This document is a **planning agenda and a set of blank tracking templates**. It
 
 * Bugs CHURN-37 to CHURN-44 and CHURN-47 to CHURN-52, all Done.
 * Follow-ups CHURN-45 (Story) and CHURN-46 (Bug), both To Do and unassigned.
+* Bug CHURN-53 (Segments page hard-coded data; blocks CHURN-10), To Do, assigned to Avanish. Logged after the 24 November audit.
 
 ## 2. Completed Stories the team must decide on at planning
 
@@ -63,7 +64,7 @@ Planned duration: about 1 hour. Attendees: all four members.
 5. **Set the sprint goal and real dates (5 min).** Use today or a future date as the start date, and agree the length.
 6. **Assign owners (5 min).** Assign CHURN-45 and CHURN-46. CHURN-34 and CHURN-35 stay shared.
 7. **Risks and dependencies (5 min).**
-   * CHURN-10 needs the Segments page's hard-coded `REVENUE` and `INSIGHTS` corrected.
+   * CHURN-10 needs the Segments page's hard-coded `REVENUE` and `INSIGHTS` corrected (tracked as CHURN-53).
    * CHURN-11 can reuse the CHURN-26 dashboard checks in `docs/frontend/UI_TEST_REPORT.md`.
 8. **Start the sprint in Jira (5 min).** Board 3 → Backlog → Start sprint, with the agreed goal and dates.
 
@@ -162,7 +163,7 @@ Suggested goal (team to confirm or replace): *"Baseline the customer data (E1) a
 **Stretch candidates**, to be added only if the team agrees:
 
 * **CHURN-9** (Shimon, 5 points). Depends on CHURN-8.
-* **CHURN-10** (Shimon, 3 points). It is blocked until someone corrects the hard-coded `REVENUE` and `INSIGHTS` constants on the Segments page. That fix has no ticket or owner yet.
+* **CHURN-10** (Shimon, 3 points). It is blocked by **CHURN-53** (Bug, Avanish, unestimated), which replaces the hard-coded `REVENUE` and `INSIGHTS` constants on the Segments page with data from `GET /segments`. CHURN-10 can be considered once CHURN-53 is merged. The team should decide at the meeting whether CHURN-53 goes into Sprint 1.
 
 **Not proposed for Sprint 1 without a team decision:**
 
@@ -183,7 +184,7 @@ Suggested goal (team to confirm or replace): *"Baseline the customer data (E1) a
 | 6 | Length (1 or 2 weeks), start date (today or later) and end date | |
 | 7 | CHURN-36: stay in Sprint 3 or move earlier | |
 | 8 | Owner and estimate for CHURN-45 and CHURN-46 | |
-| 9 | Owner and ticket for the Segments page `REVENUE`/`INSIGHTS` fix that blocks CHURN-10 | |
+| 9 | The Segments page fix that blocks CHURN-10 is now **CHURN-53** (owner: Avanish). Decide whether it goes into Sprint 1 and agree its estimate and acceptance criteria | |
 | 10 | CHURN-7: reuse `docs/ml/01-pipeline-review.md` or check independently | |
 
 After the meeting, copy the answers into the §4.1 planning record on CHURN-33, then start the sprint in Jira (§3, step 8). Each member does their own Stories under their own account.
