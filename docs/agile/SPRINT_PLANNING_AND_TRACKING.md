@@ -140,3 +140,50 @@ New issues triaged: <keys, owner, estimate>
 | CHURN-36 | `docs/PROJECT_PROGRESS_REPORT.md` includes the real sprint screenshots and review/retrospective notes, and the team has reviewed it |
 
 Recurring obligations must not be marked Done before the sprints have actually happened.
+
+## 6. Proposed Sprint 1 plan — NOT agreed
+
+**Status: a recommendation only.** The team has not met, and nothing below has been agreed. Sprint 1 stays **Future** in Jira, with no dates, until the meeting in §3 takes place and the planning record (§4.1) is filled in. No Jira field was changed to prepare this proposal.
+
+### 6.1 Recommended scope
+
+| Key | Summary | Owner (unchanged) | Points | Epic | Depends on |
+|---|---|---|---|---|---|
+| CHURN-7 | Dataset quality check | Shimon | 3 | E1 | — |
+| CHURN-8 | Customer behaviour analysis | Shimon | 5 | E1 | CHURN-7 |
+| CHURN-32 | Backlog review (recurring) | Avanish | 2 | E6 | — |
+| CHURN-33 | Sprint planning and tracking (recurring) | Avanish | 2 | E6 | Planning meeting |
+| CHURN-34 | Stand-ups and blocker log | Shared | 2 | E6 | Sprint started |
+| CHURN-35 | Sprint review and retrospective | Shared | 2 | E6 | Sprint ends |
+| **Total** | | | **16** | | |
+
+Suggested goal (team to confirm or replace): *"Baseline the customer data (E1) and run the first fully tracked sprint."*
+
+**Stretch candidates**, to be added only if the team agrees:
+
+* **CHURN-9** (Shimon, 5 points). Depends on CHURN-8.
+* **CHURN-10** (Shimon, 3 points). It is blocked until someone corrects the hard-coded `REVENUE` and `INSIGHTS` constants on the Segments page. That fix has no ticket or owner yet.
+
+**Not proposed for Sprint 1 without a team decision:**
+
+* **CHURN-36** (Avanish, 3 points) is planned in Sprint 3 in Jira. The team should decide whether to pull it forward or leave it there.
+* **CHURN-45** and **CHURN-46** have no owner, no estimate and no sprint. They need all three before they can be committed.
+
+**Overlap to decide on.** `docs/ml/01-pipeline-review.md` already discusses missing values and train/test duplicates from the ML side. The team should decide whether CHURN-7 reuses that review or does an independent check. The data-quality results themselves belong to CHURN-7, and Shimon should produce them.
+
+### 6.2 Decisions needed at the meeting
+
+| # | Decision | Answer |
+|---|---|---|
+| 1 | Who attended (only people actually present) | |
+| 2 | Treatment of the 19 Done Stories: option A or B (§2) | |
+| 3 | Which "drafted, awaiting approval" acceptance criteria are approved or amended | |
+| 4 | Sprint 1 scope: accept §6.1, add stretch items, or change it | |
+| 5 | Sprint goal | |
+| 6 | Length (1 or 2 weeks), start date (today or later) and end date | |
+| 7 | CHURN-36: stay in Sprint 3 or move earlier | |
+| 8 | Owner and estimate for CHURN-45 and CHURN-46 | |
+| 9 | Owner and ticket for the Segments page `REVENUE`/`INSIGHTS` fix that blocks CHURN-10 | |
+| 10 | CHURN-7: reuse `docs/ml/01-pipeline-review.md` or check independently | |
+
+After the meeting, copy the answers into the §4.1 planning record on CHURN-33, then start the sprint in Jira (§3, step 8). Each member does their own Stories under their own account.
