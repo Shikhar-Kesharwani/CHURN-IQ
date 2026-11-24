@@ -99,8 +99,14 @@ The team runs the project in Jira as six Epics, with 30 planned Stories in three
 | CHURN-18 to CHURN-25 (28 points), all Done | Jira comments with test evidence; `docs/api/README.md` |
 | Bugs CHURN-39 to CHURN-44, all Done | Linked to their Stories in Jira |
 | PRs #2, #3, #4 and #5 | Opened under `Shikhar-Kesharwani`; #2 and #5 merged by Shikhar, #3 and #4 by Aryan |
-| Repository CI and branch protection | PR #7 (CI workflow) and the `main` protection rule |
 | Live Gemini test | CHURN-22, comment 10026 (HTTP 200, `ai_generated: true`) |
+
+**Not Shikhar Jira tickets, so not credited above:**
+
+* **Repository CI** was added in PR #7, under the `Shikhar-Kesharwani` account, through AI-assisted development tools.
+* **Branch protection** on `main` was enabled on 24 November 2026 from the repository admin account.
+
+These are account actions; see `docs/CONTRIBUTOR_ATTRIBUTION.md`.
 
 ## 6. Avanish Rajauria — scope and status
 
