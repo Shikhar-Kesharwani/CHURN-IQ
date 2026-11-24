@@ -2157,6 +2157,11 @@ def get_segment_analysis():
     ).reset_index()
     plan_grp['churn_rate_pct'] = (plan_grp['avg_churn'] * 100).round(1)
     plan_grp['avg_clv']        = plan_grp['avg_clv'].round(0)
+    # CHURN-53: monthly revenue at risk per plan, using the same formula as
+    # overall.total_revenue_at_risk (monthly_charge × churn_prob, unscored
+    # customers contribute nothing), so the per-plan values add up to it.
+    plan_rev = (df['monthly_charge'] * df['churn_prob']).groupby(df['plan_type']).sum()
+    plan_grp['revenue_at_risk'] = plan_grp['plan_type'].map(plan_rev).astype(float).round(2)
 
     # ── By Device Type ────────────────────────────────────────────────
     device_grp = df.groupby('device_type').agg(
