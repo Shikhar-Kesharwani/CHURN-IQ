@@ -39,7 +39,7 @@ CHURN-IQ/
 ├── frontend/                             # React 18 + Vite Modern Dashboard
 │   ├── src/
 │   │   ├── api/
-│   │   │   └── churniq.js                # API client with multi-host fallback support
+│   │   │   └── churniq.js                # API client (one base URL from VITE_API_URL, no fallback host)
 │   │   ├── pages/
 │   │   │   ├── CustomerSimilarity.jsx    # Customer Similarity Finder page
 │   │   │   ├── Dashboard.jsx             # Executive KPI cards & overview charts
@@ -168,7 +168,7 @@ Full inventory, response contracts, input-validation rules and the JSON error fo
 ## 🚀 Quick Start Guide
 
 ### 1. Prerequisites
-* Python 3.10+ (tested on Python 3.11, 3.12, 3.13)
+* Python 3.10.13, the version in `backend/runtime.txt`. Production and CI use it.
 * Node.js 18+ and npm
 
 ### 2. Backend Setup
@@ -181,9 +181,9 @@ pip install -r requirements.txt
 # (Optional) Run ML pipeline to regenerate models from scratch:
 # python churniq_ml_pipeline.py
 
-# Run unit and API tests
-python test_similarity_engine.py
-python test_api_endpoints.py
+# Run the full backend test suite (needs the development requirements)
+pip install -r requirements-dev.txt
+python -m pytest -q
 
 # Start FastAPI server
 python -m uvicorn main:app --reload --port 8000

@@ -15,7 +15,9 @@ concurrency:
 jobs:
   backend-tests:
     name: Backend tests
-    runs-on: ubuntu-latest
+    # Pinned: actions/setup-python has no Python 3.10.13 build for the newer
+    # ubuntu-latest image (26.04); 24.04 has one (CHURN-46).
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
@@ -23,12 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Python 3.13 rather than runtime.txt's 3.10.13: requirements-dev.txt
-      # (needed by the ML validation tests) cannot be installed on 3.10.
-      # See Jira CHURN-46. The full suite is verified to pass on 3.13.
+      # Same Python as production (backend/runtime.txt: python-3.10.13), so the
+      # suite tests the runtime that is actually deployed. requirements-dev.txt
+      # pins matplotlib 3.10.x for this; matplotlib 3.11+ needs Python >= 3.11
+      # (CHURN-46). Keep this in step with runtime.txt.
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.10.13"
           cache: pip
           cache-dependency-path: |
             backend/requirements.txt
