@@ -61,5 +61,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Component and API-client tests (vitest + jsdom). Kept inside this job so the
+      # required status check name ("Frontend build") does not change.
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build
