@@ -1,16 +1,10 @@
-import { useEffect, useState } from 'react'
 import { api } from '../api/churniq'
+import { useApi } from '../hooks/useApi'
+import { Loading, ErrorState } from '../components/Status'
 import {
   BarChart, Bar, LineChart, Line,
   XAxis, YAxis, Tooltip, ResponsiveContainer
 } from 'recharts'
-
-const MOCK = {
-  by_plan:   [{ plan_type:'Basic', churn_rate_pct:43.9 }, { plan_type:'Standard', churn_rate_pct:43.6 }, { plan_type:'Premium', churn_rate_pct:40.2 }],
-  by_device: [{ device_type:'Mobile', churn_rate_pct:48.0 }, { device_type:'Smart TV', churn_rate_pct:46.6 }, { device_type:'Tablet', churn_rate_pct:44.8 }, { device_type:'Laptop', churn_rate_pct:40.9 }],
-  by_tenure: [{ tenure_bucket:'0-3m', churn_rate_pct:72 }, { tenure_bucket:'3-6m', churn_rate_pct:58 }, { tenure_bucket:'6-12m', churn_rate_pct:45 }, { tenure_bucket:'1-2yr', churn_rate_pct:48 }, { tenure_bucket:'2yr+', churn_rate_pct:33 }],
-  by_genre:  [{ preferred_genre:'Romance', churn_rate_pct:46 }, { preferred_genre:'Drama', churn_rate_pct:45 }, { preferred_genre:'Action', churn_rate_pct:43 }, { preferred_genre:'Comedy', churn_rate_pct:42 }, { preferred_genre:'Thriller', churn_rate_pct:41 }, { preferred_genre:'Kids', churn_rate_pct:40 }, { preferred_genre:'Documentary', churn_rate_pct:39 }],
-}
 
 const REVENUE = [
   { segment: 'Basic',    risk: 285000 },
@@ -38,21 +32,14 @@ function ChartCard({ title, children }) {
 }
 
 export default function SegmentAnalysis() {
-  const [seg, setSeg]         = useState(null)
-  const [loading, setLoading] = useState(true)
+  // CHURN-29: no mock fallback — a failed request shows an error with Retry.
+  const { data: s, error, loading, reload } = useApi((signal) => api.getSegments({ signal }), [])
 
-  useEffect(() => {
-    api.getSegments().then(d => {
-      setSeg(d || MOCK)
-      setLoading(false)
-    })
-  }, [])
-
-  const s = seg || MOCK
-
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
-      <div className="spinner" />
+  if (loading) return <Loading label="Loading segments…" height={300} />
+  if (error) return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em' }}>Segment Analysis</h2>
+      <ErrorState error={error} onRetry={reload} title="Segment data could not be loaded" />
     </div>
   )
 

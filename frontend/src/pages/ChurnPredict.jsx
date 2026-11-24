@@ -1,261 +1,240 @@
 import { useState } from 'react'
-import { api } from '../api/churniq'
-import { TrendingUp, AlertTriangle, CheckCircle, Info } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { api, CUSTOMER_ID_RE, WHATIF_BOUNDS, validateWhatIfField } from '../api/churniq'
+import { ErrorState, Loading, RiskBadge, riskColor } from '../components/Status'
+import { TrendingUp, Search, ArrowRight } from 'lucide-react'
 
-const DEFAULTS = {
-  plan_type:             'Basic',
-  monthly_charge:        199,
-  watch_hours_per_week:  5,
-  tenure_months:         12,
-  logins_last_30_days:   10,
-  payment_failures_3m:   0,
-  support_tickets:       0,
-  device_type:           'Mobile',
+// CHURN-31: "Churn Predict" is a What-If simulator on a real customer.
+// The backend has no endpoint that scores a hypothetical customer from scratch:
+// POST /whatif takes an existing customer and overrides up to six behaviour
+// fields. So the user loads a customer, edits those fields (validated with the
+// backend's own bounds) and sees the model's before/after result. There is no
+// offline estimate: if the API fails, the page says so.
+
+const FIELDS = Object.keys(WHATIF_BOUNDS)
+const SAMPLE_IDS = ['CUST00001', 'CUST01033', 'CUST02261', 'CUST00936']
+
+const GUIDANCE = {
+  HIGH:   ['Contact the customer directly with a retention offer', 'Resolve any payment-method issues', 'Recommend content matched to their viewing'],
+  MEDIUM: ['Send curated content recommendations', 'Consider a loyalty discount', 'Trigger a re-engagement notification'],
+  LOW:    ['Continue standard engagement', 'Review again if behaviour changes'],
 }
 
-function Field({ label, hint, children }) {
+function Field({ field, value, error, onChange }) {
+  const b = WHATIF_BOUNDS[field]
+  const id = `wi-${field}`
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 4 }}>
-        {label}
-        {hint && <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>— {hint}</span>}
+      <label htmlFor={id} style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>
+        {b.label} <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 400 }}>— {b.min} to {b.max}</span>
       </label>
-      {children}
+      <input id={id} type="number" inputMode="decimal" className="inp"
+        min={b.min} max={b.max} step={b.step} value={value}
+        aria-invalid={!!error} aria-describedby={error ? `${id}-err` : undefined}
+        onChange={e => onChange(field, e.target.value)}
+        style={error ? { borderColor: 'var(--red)' } : undefined} />
+      {error && <span id={`${id}-err`} role="alert" style={{ fontSize: 11, color: 'var(--red)' }}>{error}</span>}
     </div>
   )
 }
 
 export default function ChurnPredict() {
-  const [form, setForm]       = useState(DEFAULTS)
-  const [result, setResult]   = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState(null)
+  const [params] = useSearchParams()
+  const [idInput, setIdInput]     = useState(params.get('customer') || '')
+  const [idError, setIdError]     = useState(null)
+  const [customer, setCustomer]   = useState(null)
+  const [loadState, setLoadState] = useState({ loading: false, error: null })
+  const [form, setForm]           = useState({})
+  const [errors, setErrors]       = useState({})
+  const [result, setResult]       = useState(null)
+  const [submit, setSubmit]       = useState({ loading: false, error: null })
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const loadCustomer = async (raw) => {
+    const id = String(raw ?? idInput).trim().toUpperCase()
+    setIdInput(id)
+    if (!CUSTOMER_ID_RE.test(id)) {
+      setIdError('Enter a customer ID: 1–32 letters, digits, "_" or "-" (e.g. CUST00001).')
+      return
+    }
+    setIdError(null)
+    setResult(null)
+    setSubmit({ loading: false, error: null })
+    setCustomer(null)
+    setLoadState({ loading: true, error: null })
+    const { data, error } = await api.getCustomer(id)
+    setLoadState({ loading: false, error })
+    if (data) {
+      setCustomer(data)
+      setForm(Object.fromEntries(FIELDS.map(f => [f, String(data[f])])))
+      setErrors({})
+    }
+  }
+
+  const onChange = (field, v) => {
+    setForm(f => ({ ...f, [field]: v }))
+    setErrors(e => ({ ...e, [field]: validateWhatIfField(field, v) }))
+    setResult(null)
+  }
 
   const predict = async () => {
-    setLoading(true)
-    setError(null)
+    const errs = Object.fromEntries(FIELDS.map(f => [f, validateWhatIfField(f, form[f])]))
+    setErrors(errs)
+    if (Object.values(errs).some(Boolean)) return
+    setSubmit({ loading: true, error: null })
     setResult(null)
-
-    const res = await api.whatIf({
-      customer_id:           'CUST00001',
-      watch_hours_per_week:  parseFloat(form.watch_hours_per_week),
-      tenure_months:         parseInt(form.tenure_months),
-      payment_failures_3m:   parseInt(form.payment_failures_3m),
-      support_tickets:       parseInt(form.support_tickets),
-      logins_last_30_days:   parseInt(form.logins_last_30_days),
-      monthly_charge:        parseInt(form.monthly_charge),
-    })
-
-    if (res) {
-      setResult({ probability: res.new_churn_prob, risk: res.new_risk })
-    } else {
-      // Rule-based fallback
-      const score =
-        (parseInt(form.payment_failures_3m) * 0.25) +
-        (parseInt(form.support_tickets) * 0.15) +
-        (parseFloat(form.watch_hours_per_week) < 3 ? 0.3 : 0) +
-        (parseInt(form.tenure_months) < 6 ? 0.25 : 0) +
-        (parseInt(form.logins_last_30_days) < 5 ? 0.2 : 0)
-      const prob = Math.min(0.95, Math.max(0.05, score))
-      setResult({ probability: prob, risk: prob > 0.7 ? 'HIGH' : prob > 0.4 ? 'MEDIUM' : 'LOW' })
-      setError('Backend unavailable — showing estimated prediction')
-    }
-    setLoading(false)
+    const body = { customer_id: customer.customer_id, ...Object.fromEntries(FIELDS.map(f => [f, Number(form[f])])) }
+    const { data, error } = await api.whatIf(body)
+    setSubmit({ loading: false, error })
+    setResult(data)
   }
 
-  const pct = result ? Math.round(result.probability * 100) : 0
-  const riskColor = result?.risk === 'HIGH' ? 'var(--red)' : result?.risk === 'MEDIUM' ? 'var(--yellow)' : 'var(--green)'
-
-  const SUGGESTIONS = {
-    HIGH:   ['Offer 1-month free subscription immediately', 'Resolve payment method issues', 'Send personalized content digest', 'Assign dedicated support agent'],
-    MEDIUM: ['Send weekly curated content recommendations', 'Offer loyalty discount (10-15%)', 'Trigger re-engagement notification'],
-    LOW:    ['Continue standard engagement', 'Monitor monthly for changes', 'Customer is healthy — no action needed'],
-  }
+  const changed = customer ? FIELDS.filter(f => Number(form[f]) !== Number(customer[f])) : []
+  const reasons = customer ? [customer.top_reason_1, customer.top_reason_2, customer.top_reason_3].filter(Boolean) : []
+  const scored = customer?.churn_prob != null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em' }}>Churn Predict</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em' }}>Churn Predict — What-If</h2>
         <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 3 }}>
-          Enter customer attributes to predict churn probability using XGBoost model
+          Load a customer, change their behaviour, and see how the XGBoost model's churn prediction responds.
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, alignItems: 'start' }}>
-
-        {/* Form */}
-        <div className="card fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Customer Attributes</p>
-
-          <Field label="Plan Type">
-            <select value={form.plan_type}
-              onChange={e => { set('plan_type', e.target.value); set('monthly_charge', e.target.value === 'Basic' ? 199 : e.target.value === 'Standard' ? 499 : 799) }}
-              className="inp">
-              <option>Basic</option>
-              <option>Standard</option>
-              <option>Premium</option>
-            </select>
-          </Field>
-
-          <Field label="Monthly Charge" hint={`₹${form.monthly_charge}`}>
-            <input type="number" value={form.monthly_charge} className="inp"
-              onChange={e => set('monthly_charge', parseInt(e.target.value))} min={199} max={799} />
-          </Field>
-
-          <Field label="Watch Hours / Week" hint="0.5 – 40 hrs">
-            <input type="number" value={form.watch_hours_per_week} className="inp"
-              onChange={e => set('watch_hours_per_week', e.target.value)} min={0.5} max={40} step={0.5} />
-          </Field>
-
-          <Field label="Tenure" hint="1 – 72 months">
-            <input type="number" value={form.tenure_months} className="inp"
-              onChange={e => set('tenure_months', e.target.value)} min={1} max={72} />
-          </Field>
-
-          <Field label="Logins Last 30 Days">
-            <input type="number" value={form.logins_last_30_days} className="inp"
-              onChange={e => set('logins_last_30_days', e.target.value)} min={0} max={60} />
-          </Field>
-
-          <Field label="Payment Failures" hint="last 3 months (0 – 4)">
-            <input type="number" value={form.payment_failures_3m} className="inp"
-              onChange={e => set('payment_failures_3m', e.target.value)} min={0} max={4} />
-          </Field>
-
-          <Field label="Support Tickets" hint="0 – 5">
-            <input type="number" value={form.support_tickets} className="inp"
-              onChange={e => set('support_tickets', e.target.value)} min={0} max={5} />
-          </Field>
-
-          <Field label="Device Type">
-            <select value={form.device_type} onChange={e => set('device_type', e.target.value)} className="inp">
-              <option>Mobile</option>
-              <option>Laptop</option>
-              <option>Smart TV</option>
-              <option>Tablet</option>
-            </select>
-          </Field>
-
-          <button onClick={predict} disabled={loading}
-            style={{
-              padding: '11px', borderRadius: 9, border: 'none',
-              background: 'var(--accent)', color: 'var(--bg)',
-              fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              opacity: loading ? 0.7 : 1, marginTop: 4,
-              letterSpacing: '-0.01em',
-            }}>
-            {loading
-              ? <div className="spinner" style={{ width: 14, height: 14, borderTopColor: 'var(--bg)' }} />
-              : <><TrendingUp size={15} /> Predict Churn</>
-            }
+      {/* Step 1: choose a customer */}
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <form onSubmit={e => { e.preventDefault(); loadCustomer() }} style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 0 }}>
+            <label htmlFor="predict-customer" className="sr-only">Customer ID</label>
+            <Search size={14} aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)' }} />
+            <input id="predict-customer" className="inp" value={idInput} placeholder="Customer ID (e.g. CUST00001)"
+              onChange={e => setIdInput(e.target.value.toUpperCase())}
+              aria-invalid={!!idError} aria-describedby={idError ? 'predict-customer-err' : undefined}
+              style={{ paddingLeft: 32, height: 38 }} />
+          </div>
+          <button type="submit" className="btn-primary" disabled={loadState.loading} style={{ height: 38 }}>
+            Load customer
           </button>
-        </div>
-
-        {/* Result */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {!result && !loading && (
-            <div className="card fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', textAlign: 'center' }}>
-              <TrendingUp size={36} style={{ color: 'var(--border)', marginBottom: 14 }} />
-              <p style={{ fontWeight: 600, color: 'var(--text2)', fontSize: 14 }}>Fill the form to predict</p>
-              <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6, lineHeight: 1.5 }}>
-                The XGBoost model will calculate churn probability based on customer behavior signals
-              </p>
-            </div>
-          )}
-
-          {result && (
-            <>
-              {/* Risk card */}
-              <div className="card fade-in" style={{ borderLeft: `3px solid ${riskColor}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                  {result.risk === 'LOW'
-                    ? <CheckCircle size={28} style={{ color: riskColor }} />
-                    : <AlertTriangle size={28} style={{ color: riskColor }} />
-                  }
-                  <div>
-                    <p style={{ fontSize: 24, fontWeight: 800, color: riskColor, letterSpacing: '-0.03em', lineHeight: 1 }}>
-                      {result.risk} RISK
-                    </p>
-                    <p style={{ fontSize: 12, color: 'var(--text2)', marginTop: 3 }}>
-                      Churn probability: {pct}%
-                    </p>
-                  </div>
-                </div>
-
-                {/* Probability bar */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text3)', marginBottom: 6 }}>
-                    <span>Low risk (0%)</span>
-                    <span style={{ fontWeight: 700, color: riskColor, fontSize: 12 }}>{pct}%</span>
-                    <span>High risk (100%)</span>
-                  </div>
-                  <div style={{ height: 8, borderRadius: 4, background: 'var(--bg2)', overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%', width: `${pct}%`,
-                      background: riskColor, borderRadius: 4,
-                      transition: 'width 0.8s cubic-bezier(.4,0,.2,1)'
-                    }} />
-                  </div>
-                  {/* Threshold markers */}
-                  <div style={{ position: 'relative', height: 16, marginTop: 2 }}>
-                    <div style={{ position: 'absolute', left: '40%', fontSize: 9, color: 'var(--text3)' }}>40%</div>
-                    <div style={{ position: 'absolute', left: '70%', fontSize: 9, color: 'var(--text3)' }}>70%</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Feature impact breakdown */}
-              <div className="card fade-in">
-                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>Feature Impact Estimate</p>
-                {[
-                  { label: 'Payment failures',  value: parseInt(form.payment_failures_3m) * 25, max: 100 },
-                  { label: 'Watch hours',        value: Math.max(0, 100 - parseFloat(form.watch_hours_per_week) * 5), max: 100 },
-                  { label: 'Short tenure',       value: parseInt(form.tenure_months) < 6 ? 60 : parseInt(form.tenure_months) < 12 ? 30 : 10, max: 100 },
-                  { label: 'Support tickets',    value: parseInt(form.support_tickets) * 15, max: 100 },
-                  { label: 'Login frequency',    value: Math.max(0, 60 - parseInt(form.logins_last_30_days) * 4), max: 100 },
-                ].map(({ label, value }) => (
-                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text2)', width: 120, flexShrink: 0 }}>{label}</span>
-                    <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'var(--bg2)' }}>
-                      <div style={{
-                        height: '100%', width: `${Math.min(value, 100)}%`,
-                        background: value > 60 ? 'var(--red)' : value > 30 ? 'var(--yellow)' : 'var(--green)',
-                        borderRadius: 3, transition: 'width 0.6s ease'
-                      }} />
-                    </div>
-                    <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text3)', width: 30, textAlign: 'right' }}>
-                      {Math.min(value, 100)}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Retention suggestions */}
-              <div className="card fade-in" style={{ background: riskColor + '08', borderColor: riskColor + '30' }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>
-                  Retention Suggestions
-                </p>
-                {(SUGGESTIONS[result.risk] || []).map((s, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
-                    <span style={{ fontSize: 11, color: riskColor }}>→</span>
-                    <p style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.4 }}>{s}</p>
-                  </div>
-                ))}
-              </div>
-
-              {error && (
-                <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(214,158,46,0.1)', border: '1px solid rgba(214,158,46,0.3)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Info size={14} style={{ color: 'var(--yellow)', flexShrink: 0 }} />
-                  <p style={{ fontSize: 11, color: 'var(--yellow)' }}>{error}</p>
-                </div>
-              )}
-            </>
-          )}
+        </form>
+        {idError && <p id="predict-customer-err" role="alert" style={{ fontSize: 12, color: 'var(--red)' }}>{idError}</p>}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: 'var(--text3)' }}>Examples:</span>
+          {SAMPLE_IDS.map(id => (
+            <button key={id} type="button" className="btn-secondary" style={{ padding: '3px 9px', fontSize: 11, fontFamily: 'var(--mono)' }}
+              onClick={() => loadCustomer(id)}>{id}</button>
+          ))}
         </div>
       </div>
+
+      {loadState.loading && <Loading label="Loading customer…" />}
+      {loadState.error && (
+        <ErrorState error={loadState.error}
+          title={loadState.error.status === 404 ? 'Customer not found' : 'Customer could not be loaded'}
+          onRetry={loadState.error.kind === 'http' && loadState.error.status < 500 ? undefined : () => loadCustomer()} />
+      )}
+
+      {!customer && !loadState.loading && !loadState.error && (
+        <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
+          <TrendingUp size={36} style={{ color: 'var(--border)', margin: '0 auto 14px' }} aria-hidden="true" />
+          <p style={{ fontWeight: 600, color: 'var(--text2)', fontSize: 14 }}>Choose a customer to start</p>
+        </div>
+      )}
+
+      {customer && (
+        <div className="grid-2">
+          {/* Step 2: edit the six supported fields */}
+          <div className="card fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{customer.name}</p>
+                <p style={{ fontSize: 11, color: 'var(--text2)', fontFamily: 'var(--mono)' }}>
+                  <Link to={`/risk/${customer.customer_id}`} style={{ color: 'inherit' }}>{customer.customer_id}</Link>
+                  {' · '}{customer.plan_type} · {customer.device_type}
+                </p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase' }}>Current prediction</p>
+                <p style={{ fontSize: 18, fontWeight: 700, color: riskColor(customer.risk_level) }}>{customer.churn_percent}</p>
+              </div>
+            </div>
+            <p className="note" style={{ marginTop: 0 }}>
+              Only these six fields can be changed; plan type, device and every other model feature stay as recorded for this customer.
+            </p>
+            <form onSubmit={e => { e.preventDefault(); predict() }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {FIELDS.map(f => <Field key={f} field={f} value={form[f] ?? ''} error={errors[f]} onChange={onChange} />)}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="submit" className="btn-primary" disabled={submit.loading || !scored} style={{ flex: 1, padding: 11 }}>
+                  {submit.loading
+                    ? <div className="spinner" style={{ width: 14, height: 14, borderTopColor: 'var(--bg)' }} />
+                    : <><TrendingUp size={15} aria-hidden="true" /> Predict Churn</>}
+                </button>
+                <button type="button" className="btn-secondary" disabled={changed.length === 0}
+                  onClick={() => { setForm(Object.fromEntries(FIELDS.map(f => [f, String(customer[f])]))); setErrors({}); setResult(null) }}>
+                  Reset
+                </button>
+              </div>
+              {!scored && <p className="note">This customer is not scored by the model, so What-If is unavailable.</p>}
+            </form>
+          </div>
+
+          {/* Step 3: result */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+            {submit.error && <ErrorState error={submit.error} title="Prediction failed" onRetry={predict} />}
+
+            {result ? (
+              <div className="card fade-in" data-testid="predict-result" aria-live="polite" style={{ borderLeft: `3px solid ${riskColor(result.new_risk)}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase' }}>Before</p>
+                    <p style={{ fontSize: 22, fontWeight: 700, color: riskColor(result.original_risk) }}>{(result.original_churn_prob * 100).toFixed(1)}%</p>
+                    <RiskBadge level={result.original_risk} />
+                  </div>
+                  <ArrowRight size={18} style={{ color: 'var(--text3)' }} aria-hidden="true" />
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase' }}>After</p>
+                    <p style={{ fontSize: 22, fontWeight: 700, color: riskColor(result.new_risk) }}>{(result.new_churn_prob * 100).toFixed(1)}%</p>
+                    <RiskBadge level={result.new_risk} />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase' }}>Change</p>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: result.change < 0 ? 'var(--green)' : result.change > 0 ? 'var(--red)' : 'var(--text2)' }}>
+                      {result.change_percent}
+                    </p>
+                  </div>
+                </div>
+                <p className="note">
+                  {changed.length === 0
+                    ? 'No fields changed — this is the customer\'s current prediction.'
+                    : `Changed: ${changed.map(f => WHATIF_BOUNDS[f].label).join(', ')}.`}
+                </p>
+                <div style={{ marginTop: 12 }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Suggested next steps ({result.new_risk} risk)</p>
+                  <ul style={{ listStyle: 'none' }}>
+                    {(GUIDANCE[result.new_risk] || []).map((s, i) => (
+                      <li key={i} style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 4 }}>→ {s}</li>
+                    ))}
+                  </ul>
+                  <p className="note">General guidance by risk tier, not model output.</p>
+                </div>
+              </div>
+            ) : !submit.error && (
+              <div className="card" style={{ padding: '32px 24px', textAlign: 'center' }}>
+                <p style={{ fontSize: 13, color: 'var(--text2)' }}>Change one or more fields and click <strong>Predict Churn</strong>.</p>
+              </div>
+            )}
+
+            {/* The customer's real SHAP explanation (current behaviour) */}
+            <div className="card">
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>Current top churn reasons (SHAP)</p>
+              {reasons.length === 0 ? <p className="note">No SHAP explanation available.</p> : (
+                <ol style={{ paddingLeft: 18 }}>
+                  {reasons.map((r, i) => <li key={i} style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 4 }}>{r}</li>)}
+                </ol>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
