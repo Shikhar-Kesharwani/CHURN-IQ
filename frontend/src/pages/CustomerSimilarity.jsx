@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react'
-import { api } from '../api/churniq'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { api, CUSTOMER_ID_RE } from '../api/churniq'
+import { ErrorState, RiskBadge } from '../components/Status'
 import {
   Users, Search, GitCompare, ArrowRight, CheckCircle2,
   AlertTriangle, Clock, PlayCircle, ShieldAlert,
@@ -8,13 +10,8 @@ import {
 
 // Quick sample IDs for one-click testing
 const SAMPLE_IDS = ['CUST00001', 'CUST00002', 'CUST00003', 'CUST01033', 'CUST02039']
-
-function RiskBadge({ level }) {
-  // NOT_SCORED = no out-of-sample model prediction (never shown as LOW)
-  const cls = level === 'HIGH' ? 'badge-high' : level === 'MEDIUM' ? 'badge-medium'
-            : level === 'LOW' ? 'badge-low' : 'badge-none'
-  return <span className={cls}>{level === 'NOT_SCORED' ? 'NOT SCORED' : level}</span>
-}
+// Backend accepts 1–50 (CHURN-41); offer a few sensible choices.
+const COUNT_OPTIONS = [3, 5, 10, 20]
 
 function OutcomeBadge({ outcome }) {
   const isChurned = outcome === 'Churned'
@@ -63,40 +60,47 @@ function StatBox({ label, value, sub, highlight }) {
 }
 
 export default function CustomerSimilarity() {
-  const [searchId, setSearchId] = useState('CUST00001')
+  const [params] = useSearchParams()
+  const initialId = (params.get('customer') || 'CUST00001').trim().toUpperCase()
+  const [searchId, setSearchId] = useState(initialId)
+  const [count, setCount] = useState(5)
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [selectedCompare, setSelectedCompare] = useState(null)
+  const latest = useRef(0)
 
-  const fetchSimilarity = async (cid) => {
+  const fetchSimilarity = async (cid, n = count) => {
     const targetId = (cid || searchId).trim().toUpperCase()
-    if (!targetId) return
+    if (!CUSTOMER_ID_RE.test(targetId)) {
+      setError({ kind: 'input', message: 'Enter a customer ID: 1–32 letters, digits, "_" or "-" (e.g. CUST00001).' })
+      setData(null)
+      return
+    }
 
+    const req = ++latest.current   // ignore responses from older searches
     setLoading(true)
     setError(null)
-    try {
-      const res = await api.getCustomerSimilarity({ customer_id: targetId, n_neighbors: 5 })
-      if (res?.error) {
-        setError(res.error)
-        setData(null)
-      } else if (res?.similar_customers) {
-        setData(res)
-        // Default compare customer to the closest neighbor
-        setSelectedCompare(res.similar_customers[0] || null)
-      } else {
-        setError('Unexpected response from similarity service.')
-      }
-    } catch (e) {
-      setError(e.message || 'Error connecting to backend')
-    } finally {
-      setLoading(false)
+    const { data: res, error: err } = await api.getCustomerSimilarity({ customer_id: targetId, n_neighbors: n })
+    if (req !== latest.current) return
+    if (err) {
+      setError(err)
+      setData(null)
+    } else if (Array.isArray(res?.similar_customers) && res.selected_customer) {
+      setData(res)
+      // Default compare customer to the closest neighbor
+      setSelectedCompare(res.similar_customers[0] || null)
+    } else {
+      setError({ kind: 'invalid', message: 'Unexpected response from the similarity service.' })
+      setData(null)
     }
+    setLoading(false)
   }
 
-  // Load initial customer on mount
+  // Load the initial customer (from ?customer=… when opened from Customer Detail)
   useEffect(() => {
-    fetchSimilarity('CUST00001')
+    fetchSimilarity(initialId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const selected = data?.selected_customer
@@ -154,11 +158,21 @@ export default function CustomerSimilarity() {
               onChange={e => setSearchId(e.target.value.toUpperCase())}
               onKeyDown={e => e.key === 'Enter' && fetchSimilarity()}
               placeholder="Search by Customer ID (e.g. CUST00001)"
+              aria-label="Customer ID"
               className="inp"
               style={{ paddingLeft: 36, height: 40 }}
             />
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text2)' }}>
+            Neighbours
+            <select className="inp" value={count} aria-label="Number of similar customers"
+              onChange={e => { const n = Number(e.target.value); setCount(n); fetchSimilarity(undefined, n) }}
+              style={{ width: 'auto', height: 40 }}>
+              {COUNT_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
           <button
+            type="button"
             onClick={() => fetchSimilarity()}
             disabled={loading}
             style={{
@@ -213,20 +227,15 @@ export default function CustomerSimilarity() {
         </div>
 
         {error && (
-          <div style={{
-            background: 'rgba(229,62,62,0.1)',
-            border: '1px solid var(--red)',
-            borderRadius: 8,
-            padding: '10px 14px',
-            fontSize: 13,
-            color: 'var(--red)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}>
-            <AlertTriangle size={16} />
-            <span>{error}</span>
-          </div>
+          <ErrorState
+            compact
+            error={error}
+            title={error.kind === 'input' ? 'Invalid customer ID'
+              : error.status === 404 ? 'Customer not found'
+              : error.status === 422 ? 'Invalid request'
+              : undefined}
+            onRetry={error.kind === 'network' || error.kind === 'timeout' || error.status >= 500 ? () => fetchSimilarity() : undefined}
+          />
         )}
       </div>
 
@@ -236,7 +245,7 @@ export default function CustomerSimilarity() {
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--mono)' }}>
                     {selected.customer_id}
                   </span>
@@ -286,8 +295,8 @@ export default function CustomerSimilarity() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <div>
                 <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Layers size={17} />
-                  Top 5 Nearest Historical Lookalikes
+                  <Layers size={17} aria-hidden="true" />
+                  Top {data?.count ?? neighbors.length} Nearest Historical Lookalikes
                 </h2>
                 <p style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>
                   Selected customer excluded. Ranked by Euclidean similarity in standardized behavioral space.
@@ -297,6 +306,12 @@ export default function CustomerSimilarity() {
                 Returned {neighbors.length} neighbours
               </span>
             </div>
+
+            {neighbors.length === 0 && (
+              <p style={{ fontSize: 13, color: 'var(--text2)', padding: '12px 0' }}>
+                No similar customers were returned for this customer.
+              </p>
+            )}
 
             {/* Results Table */}
             <div style={{ overflowX: 'auto' }}>
@@ -511,7 +526,7 @@ export default function CustomerSimilarity() {
                 Data-Driven Lookalike Insights
               </h3>
               <p style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>
-                Factual observations synthesized directly from the top 5 nearest historical records.
+                Factual observations synthesized directly from the nearest historical records returned above.
               </p>
             </div>
 

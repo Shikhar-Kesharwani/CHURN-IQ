@@ -1,54 +1,73 @@
 # ChurnIQ Pro — Frontend
 
-Modern React 18 + Vite frontend for ChurnIQ Pro, an AI-powered OTT customer churn prediction and retention intelligence platform.
+React 18 + Vite frontend for ChurnIQ Pro, an OTT customer churn prediction and retention platform.
 
 ---
 
-## 🚀 Features & Pages
+## Pages
 
-1. **Dashboard (`/`)**: Executive KPI cards, monthly churn trends, churn reasons donut chart, plan type distribution, and high-CLV priority intervention list.
-2. **Customer Risk Table (`/risk`)**: Searchable, filterable risk table with color-coded churn badges, plan filters, and direct links to individual customer profiles.
-3. **Customer Detail (`/risk/:id`)**: Comprehensive customer profile, live What-If simulator sliders, SHAP impact breakdown, and Gemini AI retention email generation.
-4. **Segments (`/segments`)**: Deep dive analytics across plans, devices, tenure cohorts, and content genres.
-5. **Churn Predict (`/predict`)**: Interactive churn simulator for hypothetical customer profiles.
-6. **Customer Similarity Finder (`/similarity`)**:
-   - Discovers the **5 nearest historical lookalikes** using K-Nearest Neighbors (KNN).
-   - Displays real ground-truth historical churn outcomes ("Retained" vs "Churned").
-   - Shows normalized similarity percentages derived from Euclidean distance in standardized feature space.
-   - Interactive side-by-side metric comparison across viewing hours, logins, payment failures, support tickets, tenure, and monthly charges.
-   - Factual, data-driven lookalike insights.
+1. **Dashboard (`/`)**
+   * KPI cards from `GET /dashboard/summary`.
+   * Churn-risk signals and the high-CLV priority list.
+   * Plan churn, CLV and a monthly trend from `GET /segments`. The trend is clearly labelled as **simulated**, because the dataset has no monthly history.
+2. **Customer Risk Table (`/risk`)**
+   * All customers from `GET /customers?limit=10000`.
+   * Search by name or ID, risk and plan filters, and sortable columns (risk sorts by severity).
+   * Pagination (25, 50 or 100 rows), risk badges, and empty, loading and error states.
+3. **Customer Detail (`/risk/:id`)**
+   * Profile, CLV tier and SHAP reasons from `GET /customer/{id}`.
+   * What-If sliders (`POST /whatif`).
+   * Retention email draft from `GET /retention/{id}`, labelled as AI-generated or rule-based. Sending requires the operator's email API token (CHURN-44).
+4. **Segments (`/segments`)**: churn by plan, device, tenure and genre (`GET /segments`).
+5. **Churn Predict (`/predict`)**
+   * What-If on a real customer: load a customer, then edit the six fields `POST /whatif` supports. The inputs are validated with the backend's own bounds.
+   * Shows the model's before and after prediction.
+   * The backend cannot score a hypothetical customer from scratch, so this page doesn't pretend to.
+6. **Customer Similarity Finder (`/similarity`)**
+   * Nearest historical lookalikes by KNN (`POST /api/customer-similarity`), with a choice of 3, 5, 10 or 20 neighbours.
+   * Opens directly with `?customer=<ID>`, for example from Customer Detail.
+
+**When the API is down:** every page shows a clear error with a **Retry** button, and no mock or estimated data. The navbar badge shows the real API status.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech stack
 
-- **React 18** + **Vite**
-- **React Router v6**
-- **Recharts**
-- **Lucide React** (Icons)
-- **Tailwind CSS v4**
+React 18, Vite 6, React Router 6, Recharts, Lucide icons, Tailwind CSS 4. Tests use Vitest, Testing Library and jsdom.
 
 ---
 
-## 🏃‍♂️ Getting Started
+## Getting started
 
-### 1. Install dependencies:
 ```bash
-npm install
+npm ci
 ```
 
-### 2. Set backend API URL (Optional, defaults to http://localhost:8000):
-```bash
-# In .env or shell:
-VITE_API_URL=http://localhost:8000
-```
-
-### 3. Run development server:
 ```bash
 npm run dev
 ```
 
-### 4. Build for production:
+```bash
+npm test
+```
+
 ```bash
 npm run build
 ```
+
+### API base URL
+
+The frontend calls exactly one API, `VITE_API_URL`. There is no silent fallback to another server.
+
+| Situation | URL used |
+|---|---|
+| `npm run dev` | `VITE_API_URL` if set, otherwise `http://localhost:8000` |
+| `npm run build` | `VITE_API_URL` from the environment if set, otherwise the value in `.env.production` |
+
+To use another backend for one build:
+
+```bash
+VITE_API_URL=http://127.0.0.1:8000 npm run build
+```
+
+`.env.production` holds only the public production API URL. Anything in a `VITE_*` variable is compiled into the public JavaScript bundle, so never put a secret there. The email API token is typed in by the operator at send time and kept in `sessionStorage` only.
