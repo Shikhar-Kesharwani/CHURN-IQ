@@ -15,7 +15,9 @@ concurrency:
 jobs:
   backend-tests:
     name: Backend tests
-    runs-on: ubuntu-latest
+    # Pinned: actions/setup-python has no Python 3.10.13 build for the newer
+    # ubuntu-latest image (26.04); 24.04 has one (CHURN-46).
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
