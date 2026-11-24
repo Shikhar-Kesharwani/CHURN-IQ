@@ -1,5 +1,7 @@
 # CHURN-15 — SHAP Explanation Validation
 
+> **Model update, 24 Nov 2026 (CHURN-57).** The production model has been replaced by the regularised recipe with monotone constraints (`regularised_monotonic`, [07-monotonic-constraints.md](07-monotonic-constraints.md)). The analysis below describes the **previous** committed model and is kept as the historical record. Its script has been re-run on the new model, and the current figures are in `results/shap_validation.json`: additivity error 2×10⁻⁶; 12.5% of mean |SHAP| on non-driver features (previously 47%); 128 of 1,000 customers have a non-driver top reason (previously 398).
+
 **Reproduce:** `cd backend && python validate_shap.py` (writes `docs/ml/results/shap_validation.json`)
 **Tests:** `backend/tests/test_shap_validation.py`
 

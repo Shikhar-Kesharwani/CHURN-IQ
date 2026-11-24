@@ -83,3 +83,63 @@ def test_recorded_experiment_supports_adoption():
     # Across 10 other splits the cost is negligible
     rob = r['robustness_10_splits']
     assert abs(rob['mean_diff_F_mono_minus_F']) < 0.005 and rob['min_diff'] > -0.01
+
+
+# ── Adopted production artifacts (CHURN-57) ─────────────────────────────────
+
+def test_production_config_is_the_adopted_constrained_recipe():
+    assert pipeline.PRODUCTION_CONFIG == 'regularised_monotonic'
+    cfg = pipeline.MODEL_CONFIGS['regularised_monotonic']
+    assert cfg['monotone'] is True and cfg['smote'] is False
+    assert cfg['xgb_params'] == pipeline.MODEL_CONFIGS['regularised']['xgb_params']
+    assert pipeline.MONOTONE_DIRECTIONS == mx.CONSTRAINTS
+
+
+def test_committed_artifacts_carry_the_constraints(artifacts):
+    import pickle
+    expected = pipeline.monotone_constraint_tuple(artifacts['feature_names'])
+
+    def constraints_of(model):
+        cfg = json.loads(model.get_booster().save_config())
+        raw = cfg['learner']['gradient_booster']['tree_train_param']['monotone_constraints']
+        return tuple(int(v) for v in raw.strip('()').split(','))
+
+    assert constraints_of(artifacts['model']) == expected
+    with open(os.path.join(os.path.dirname(ev.RESULTS_DIR), '..', '..', 'backend',
+                           'oof_fold_models.pkl'), 'rb') as f:
+        bundle = pickle.load(f)
+    assert bundle['model_config'] == pipeline.PRODUCTION_CONFIG and bundle['seed'] == pipeline.SEED
+    for m in bundle['models']:
+        assert constraints_of(m) == expected
+    with open(os.path.join(os.path.dirname(ev.RESULTS_DIR), '..', '..', 'backend',
+                           'model_metadata.json')) as f:
+        meta = json.load(f)
+    assert meta['model_config'] == pipeline.PRODUCTION_CONFIG and meta['seed'] == pipeline.SEED
+    assert tuple(meta['xgb_params']['monotone_constraints']) == expected
+    assert meta['test_metrics']['roc_auc'] == 0.7597
+
+
+@pytest.mark.parametrize('field,values,sign', [
+    ('watch_hours_per_week', [0.5, 2.0, 5.0, 12.0, 40.0], -1),
+    ('logins_last_30_days', [0, 2, 8, 26], -1),
+    ('tenure_months', [1, 5, 12, 72], -1),
+    ('payment_failures_3m', [0, 1, 2, 4], +1),
+    ('support_tickets', [0, 2, 5], +1),
+])
+def test_served_whatif_is_monotonic_for_every_sampled_customer(api, field, values, sign):
+    """Through POST /whatif: holdout (production model) and out-of-fold (fold models)."""
+    from fastapi.testclient import TestClient
+    main, _ = api
+    client = TestClient(main.app)
+    p = main.PREDICTIONS_DF
+    ids = (list(p.loc[p['prediction_source'] == 'holdout_test', 'customer_id'][::25])
+           + list(p.loc[p['prediction_source'] == 'cv_out_of_fold', 'customer_id'][::100]))
+    for cid in ids:
+        probs = []
+        for v in values:
+            r = client.post('/whatif', json={'customer_id': cid, field: v})
+            assert r.status_code == 200, r.text
+            probs.append(r.json()['new_churn_prob'])
+        steps = np.diff(probs) * sign
+        # Responses are rounded to 4 dp, so allow one rounding unit
+        assert (steps >= -1e-4).all(), (cid, field, probs)

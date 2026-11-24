@@ -18,11 +18,12 @@ Machine-readable results are in [`results/`](results/): `evaluation_results.json
 ## Headline findings
 
 - **Bug fixed: what-if predictions ignored every categorical feature.** A single-row `get_dummies(drop_first=True)` zeroed all 19 one-hot columns. A no-change `/whatif` moved churn probability by 0.157 on average and changed the risk tier for 327 of 1,000 customers. After the fix: Δ ≤ 0.0001 and 0 tier changes.
-- **Committed model on the held-out test set:** ROC-AUC **0.717**, accuracy 0.667, precision 0.623, recall 0.578, F1 0.599. The ceiling set by the data's own label noise is about 0.794.
+- **Production model replaced (CHURN-57, 24 Nov 2026).** The committed model is now the regularised recipe with monotone constraints: test ROC-AUC **0.760**, accuracy 0.703, precision 0.679, recall 0.589, F1 0.631. The figures in reports 02 to 06 describe the **previous** model, which scored ROC-AUC 0.717, accuracy 0.667, precision 0.623, recall 0.578 and F1 0.599, and they are kept as the historical record. Regenerated results are in `results/`.
+- **Previous committed model on the held-out test set:** ROC-AUC **0.717**, accuracy 0.667, precision 0.623, recall 0.578, F1 0.599. The ceiling set by the data's own label noise is about 0.794.
 - **SHAP is computed correctly** (additivity error < 3×10⁻⁶). However, 47% of the explanation weight sits on features that don't drive churn. The plain-English reason text also contradicted customers' actual values (fixed).
 - **The CLV formula is correct.** Tier assignment was inconsistent between endpoints for 156 customers (fixed). **Every customer now has a genuine prediction:** 4,000 training customers are scored out-of-fold (AUC 0.746) instead of showing 0 % / ₹0 (CHURN-37), and the demo customer is model-scored (CHURN-38).
 - **What-If direction (CHURN-45):** the served model moves risk the wrong way for about 99% of customers somewhere in the watch-hours, logins and tenure ranges. XGBoost monotone constraints remove this completely (0 customers) at no measurable AUC cost. Decision: adopt the regularised recipe with constraints (test ROC-AUC 0.760); adoption is CHURN-57. See [07-monotonic-constraints.md](07-monotonic-constraints.md).
-- **A regularised XGBoost without SMOTE improves test ROC-AUC from 0.724 to 0.758** (paired 95% CI of the gain +0.018 to +0.052). It also improves calibration and cuts noise-driven explanations from 47% to 11%. It's available as `--model-config regularised`; the production artifact is unchanged pending team sign-off.
+- **A regularised XGBoost without SMOTE improves test ROC-AUC from 0.724 to 0.758** (paired 95% CI of the gain +0.018 to +0.052). It also improves calibration and cuts noise-driven explanations from 47% to 11%. It was adopted, with monotone constraints, as the production recipe `regularised_monotonic` in CHURN-57. With the new model, the share of SHAP weight on non-driver features is 12.5% (previously 47%).
 
 ## How to run
 

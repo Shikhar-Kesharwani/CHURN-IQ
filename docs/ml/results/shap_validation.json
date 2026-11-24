@@ -9,8 +9,8 @@
     ]
   },
   "additivity": {
-    "expected_value_log_odds": 0.002741,
-    "max_abs_error_expected_plus_sum_shap_vs_margin": 2.384185791015625e-06,
+    "expected_value_log_odds": -0.276348,
+    "max_abs_error_expected_plus_sum_shap_vs_margin": 2.0265579223632812e-06,
     "max_abs_error_sigmoid_margin_vs_predict_proba": 1.1920928955078125e-07,
     "units": "log-odds (margin); sigmoid(expected + sum(shap)) = churn probability"
   },
@@ -23,19 +23,19 @@
       "holdout_test": {
         "customers": 1000,
         "reasons_match": 1000,
-        "max_additivity_error": 2.384185791015625e-06
+        "max_additivity_error": 2.0265579223632812e-06
       },
       "cv_out_of_fold": {
         "customers": 4000,
         "reasons_match": 4000,
-        "max_additivity_error": 3.0994415283203125e-06,
-        "max_prob_diff_vs_csv": 2.975463864185457e-08
+        "max_additivity_error": 3.5762786865234375e-06,
+        "max_prob_diff_vs_csv": 9.999647140501722e-05
       },
       "demo": {
         "customers": 1,
         "reasons_match": 1,
         "max_additivity_error": 2.384185791015625e-06,
-        "max_prob_diff_vs_csv": 2.0408630341250955e-08
+        "max_prob_diff_vs_csv": 2.069473270527311e-08
       }
     }
   },
@@ -43,304 +43,304 @@
     "top10_mean_abs_shap": [
       {
         "feature": "watch_hours_per_week",
-        "mean_abs_shap": 0.575,
+        "mean_abs_shap": 0.4648,
         "generator_driver": true
       },
       {
         "feature": "friction_score",
-        "mean_abs_shap": 0.4931,
+        "mean_abs_shap": 0.4502,
         "generator_driver": true
       },
       {
         "feature": "tenure_months",
-        "mean_abs_shap": 0.387,
+        "mean_abs_shap": 0.3281,
         "generator_driver": true
-      },
-      {
-        "feature": "device_type_Tablet",
-        "mean_abs_shap": 0.2522,
-        "generator_driver": false
-      },
-      {
-        "feature": "device_type_Mobile",
-        "mean_abs_shap": 0.2519,
-        "generator_driver": true
-      },
-      {
-        "feature": "device_type_Smart TV",
-        "mean_abs_shap": 0.2123,
-        "generator_driver": false
       },
       {
         "feature": "payment_failures_3m",
-        "mean_abs_shap": 0.1873,
+        "mean_abs_shap": 0.1963,
         "generator_driver": true
       },
       {
-        "feature": "country_India",
-        "mean_abs_shap": 0.1683,
+        "feature": "engagement_score",
+        "mean_abs_shap": 0.1345,
+        "generator_driver": true
+      },
+      {
+        "feature": "num_profiles",
+        "mean_abs_shap": 0.0692,
         "generator_driver": false
       },
       {
-        "feature": "engagement_score",
-        "mean_abs_shap": 0.1675,
+        "feature": "last_login_days_ago",
+        "mean_abs_shap": 0.045,
         "generator_driver": true
       },
       {
         "feature": "preferred_genre_Documentary",
-        "mean_abs_shap": 0.1393,
+        "mean_abs_shap": 0.0374,
+        "generator_driver": false
+      },
+      {
+        "feature": "age",
+        "mean_abs_shap": 0.0372,
+        "generator_driver": false
+      },
+      {
+        "feature": "device_type_Tablet",
+        "mean_abs_shap": 0.0308,
         "generator_driver": false
       }
     ],
-    "share_of_mean_abs_shap_on_non_driver_features": 0.4721,
-    "displayed_reasons_total": 2999,
-    "displayed_reasons_citing_non_driver_features": 1665,
-    "customers_whose_top_reason_is_non_driver": 398
+    "share_of_mean_abs_shap_on_non_driver_features": 0.1254,
+    "displayed_reasons_total": 3000,
+    "displayed_reasons_citing_non_driver_features": 896,
+    "customers_whose_top_reason_is_non_driver": 128
   },
   "mean_abs_shap_all_features": {
-    "watch_hours_per_week": 0.575,
-    "friction_score": 0.4931,
-    "tenure_months": 0.387,
-    "device_type_Tablet": 0.2522,
-    "device_type_Mobile": 0.2519,
-    "device_type_Smart TV": 0.2123,
-    "payment_failures_3m": 0.1873,
-    "country_India": 0.1683,
-    "engagement_score": 0.1675,
-    "preferred_genre_Documentary": 0.1393,
-    "gender_Male": 0.138,
-    "last_login_days_ago": 0.1287,
-    "age": 0.1247,
-    "payment_method_Debit Card": 0.1223,
-    "payment_method_Wallet": 0.1192,
-    "num_profiles": 0.1173,
-    "preferred_genre_Thriller": 0.104,
-    "gender_Other": 0.1038,
-    "logins_last_30_days": 0.0992,
-    "preferred_genre_Romance": 0.0938,
-    "payment_method_UPI": 0.0873,
-    "country_Singapore": 0.0827,
-    "preferred_genre_Comedy": 0.0728,
-    "preferred_genre_Drama": 0.0721,
-    "preferred_genre_Kids": 0.0579,
-    "support_tickets": 0.0461,
-    "plan_type": 0.0444,
-    "country_USA": 0.0391,
-    "country_UK": 0.0268,
-    "country_UAE": 0.0153,
-    "monthly_charge": 0.0117,
-    "is_new_customer": 0.0056,
-    "inactivity_flag": 0.0054
+    "watch_hours_per_week": 0.4648,
+    "friction_score": 0.4502,
+    "tenure_months": 0.3281,
+    "payment_failures_3m": 0.1963,
+    "engagement_score": 0.1345,
+    "num_profiles": 0.0692,
+    "last_login_days_ago": 0.045,
+    "preferred_genre_Documentary": 0.0374,
+    "age": 0.0372,
+    "device_type_Tablet": 0.0308,
+    "is_new_customer": 0.0252,
+    "support_tickets": 0.0227,
+    "plan_type": 0.0226,
+    "device_type_Mobile": 0.017,
+    "country_Singapore": 0.0146,
+    "monthly_charge": 0.0135,
+    "country_UAE": 0.012,
+    "country_India": 0.0085,
+    "logins_last_30_days": 0.0075,
+    "gender_Other": 0.0071,
+    "gender_Male": 0.0059,
+    "payment_method_UPI": 0.0053,
+    "preferred_genre_Thriller": 0.0052,
+    "preferred_genre_Romance": 0.0048,
+    "country_USA": 0.003,
+    "preferred_genre_Comedy": 0.002,
+    "preferred_genre_Kids": 0.0013,
+    "preferred_genre_Drama": 0.001,
+    "payment_method_Debit Card": 0.0008,
+    "country_UK": 0.0008,
+    "device_type_Smart TV": 0.0007,
+    "inactivity_flag": 0.0,
+    "payment_method_Wallet": 0.0
   },
   "examples": [
     {
       "customer_id": "CUST01033",
       "risk_level": "HIGH",
       "actual_churn": 1,
-      "churn_prob": 0.9958,
-      "expected_plus_sum_shap": 5.4718,
-      "margin": 5.4718,
+      "churn_prob": 0.9938,
+      "expected_plus_sum_shap": 5.0745,
+      "margin": 5.0745,
       "top_contributions": [
         {
           "feature": "friction_score",
           "value": 7.0,
-          "shap": 2.1896
+          "shap": 1.7737
         },
         {
           "feature": "tenure_months",
           "value": 2.0,
-          "shap": 1.3938
+          "shap": 1.5248
         },
         {
           "feature": "watch_hours_per_week",
           "value": 1.4,
-          "shap": 0.7966
+          "shap": 1.0072
         },
         {
-          "feature": "device_type_Mobile",
-          "value": 1.0,
-          "shap": 0.3785
+          "feature": "support_tickets",
+          "value": 5.0,
+          "shap": 0.4587
         }
       ],
       "stored_reasons": [
-        "friction_score (impact: +2.19)",
-        "tenure_months (impact: +1.39)",
-        "watch_hours_per_week (impact: +0.80)"
+        "friction_score (impact: +1.77)",
+        "tenure_months (impact: +1.52)",
+        "watch_hours_per_week (impact: +1.01)"
       ]
     },
     {
-      "customer_id": "CUST03969",
+      "customer_id": "CUST03365",
       "risk_level": "HIGH",
-      "actual_churn": 1,
-      "churn_prob": 0.8296,
-      "expected_plus_sum_shap": 1.5829,
-      "margin": 1.5829,
-      "top_contributions": [
-        {
-          "feature": "last_login_days_ago",
-          "value": 25.0,
-          "shap": 1.0961
-        },
-        {
-          "feature": "device_type_Tablet",
-          "value": 1.0,
-          "shap": 0.5412
-        },
-        {
-          "feature": "watch_hours_per_week",
-          "value": 2.5,
-          "shap": 0.2902
-        },
-        {
-          "feature": "payment_method_Debit Card",
-          "value": 1.0,
-          "shap": 0.2343
-        }
-      ],
-      "stored_reasons": [
-        "last_login_days_ago (impact: +1.10)",
-        "device_type_Tablet (impact: +0.54)",
-        "watch_hours_per_week (impact: +0.29)"
-      ]
-    },
-    {
-      "customer_id": "CUST04935",
-      "risk_level": "MEDIUM",
-      "actual_churn": 1,
-      "churn_prob": 0.6971,
-      "expected_plus_sum_shap": 0.8337,
-      "margin": 0.8337,
-      "top_contributions": [
-        {
-          "feature": "watch_hours_per_week",
-          "value": 0.5,
-          "shap": 1.1022
-        },
-        {
-          "feature": "country_India",
-          "value": 0.0,
-          "shap": -0.8051
-        },
-        {
-          "feature": "device_type_Mobile",
-          "value": 1.0,
-          "shap": 0.5303
-        },
-        {
-          "feature": "engagement_score",
-          "value": 0.183,
-          "shap": 0.5176
-        }
-      ],
-      "stored_reasons": [
-        "watch_hours_per_week (impact: +1.10)",
-        "device_type_Mobile (impact: +0.53)",
-        "engagement_score (impact: +0.52)"
-      ]
-    },
-    {
-      "customer_id": "CUST03929",
-      "risk_level": "MEDIUM",
-      "actual_churn": 1,
-      "churn_prob": 0.5421,
-      "expected_plus_sum_shap": 0.1687,
-      "margin": 0.1687,
+      "actual_churn": 0,
+      "churn_prob": 0.7973,
+      "expected_plus_sum_shap": 1.3696,
+      "margin": 1.3696,
       "top_contributions": [
         {
           "feature": "friction_score",
-          "value": 3.0,
-          "shap": 0.6904
-        },
-        {
-          "feature": "country_Singapore",
-          "value": 1.0,
-          "shap": 0.6107
-        },
-        {
-          "feature": "country_India",
-          "value": 0.0,
-          "shap": -0.428
-        },
-        {
-          "feature": "watch_hours_per_week",
-          "value": 11.1,
-          "shap": -0.416
-        }
-      ],
-      "stored_reasons": [
-        "friction_score (impact: +0.69)",
-        "country_Singapore (impact: +0.61)",
-        "device_type_Smart TV (impact: +0.37)"
-      ]
-    },
-    {
-      "customer_id": "CUST02155",
-      "risk_level": "LOW",
-      "actual_churn": 0,
-      "churn_prob": 0.398,
-      "expected_plus_sum_shap": -0.4137,
-      "margin": -0.4137,
-      "top_contributions": [
-        {
-          "feature": "watch_hours_per_week",
-          "value": 0.8,
-          "shap": 0.9288
+          "value": 5.0,
+          "shap": 0.9452
         },
         {
           "feature": "tenure_months",
-          "value": 50.0,
-          "shap": -0.9188
+          "value": 7.0,
+          "shap": 0.4311
         },
         {
-          "feature": "friction_score",
-          "value": 0.0,
-          "shap": -0.6685
+          "feature": "watch_hours_per_week",
+          "value": 2.9,
+          "shap": 0.1642
         },
         {
-          "feature": "preferred_genre_Romance",
-          "value": 1.0,
-          "shap": 0.5618
+          "feature": "support_tickets",
+          "value": 4.0,
+          "shap": 0.0486
         }
       ],
       "stored_reasons": [
-        "watch_hours_per_week (impact: +0.93)",
-        "preferred_genre_Romance (impact: +0.56)",
-        "device_type_Smart TV (impact: +0.56)"
+        "friction_score (impact: +0.95)",
+        "tenure_months (impact: +0.43)",
+        "watch_hours_per_week (impact: +0.16)"
       ]
     },
     {
-      "customer_id": "CUST01688",
-      "risk_level": "LOW",
+      "customer_id": "CUST03094",
+      "risk_level": "MEDIUM",
       "actual_churn": 0,
-      "churn_prob": 0.2163,
-      "expected_plus_sum_shap": -1.2875,
-      "margin": -1.2875,
+      "churn_prob": 0.6989,
+      "expected_plus_sum_shap": 0.842,
+      "margin": 0.842,
       "top_contributions": [
         {
           "feature": "friction_score",
-          "value": 0.0,
-          "shap": -0.817
+          "value": 5.0,
+          "shap": 0.9237
         },
         {
-          "feature": "preferred_genre_Drama",
-          "value": 1.0,
-          "shap": 0.3724
+          "feature": "payment_failures_3m",
+          "value": 3.0,
+          "shap": 0.7441
         },
         {
-          "feature": "age",
-          "value": 46.0,
-          "shap": -0.2387
+          "feature": "watch_hours_per_week",
+          "value": 10.2,
+          "shap": -0.357
         },
         {
-          "feature": "gender_Male",
-          "value": 1.0,
-          "shap": 0.2059
+          "feature": "tenure_months",
+          "value": 26.0,
+          "shap": -0.2836
         }
       ],
       "stored_reasons": [
-        "preferred_genre_Drama (impact: +0.37)",
-        "gender_Male (impact: +0.21)",
-        "payment_method_Wallet (impact: +0.18)"
+        "friction_score (impact: +0.92)",
+        "payment_failures_3m (impact: +0.74)",
+        "num_profiles (impact: +0.05)"
+      ]
+    },
+    {
+      "customer_id": "CUST03549",
+      "risk_level": "MEDIUM",
+      "actual_churn": 0,
+      "churn_prob": 0.5515,
+      "expected_plus_sum_shap": 0.2068,
+      "margin": 0.2068,
+      "top_contributions": [
+        {
+          "feature": "watch_hours_per_week",
+          "value": 0.6,
+          "shap": 0.9557
+        },
+        {
+          "feature": "tenure_months",
+          "value": 47.0,
+          "shap": -0.5184
+        },
+        {
+          "feature": "engagement_score",
+          "value": 0.2,
+          "shap": 0.3814
+        },
+        {
+          "feature": "friction_score",
+          "value": 1.0,
+          "shap": -0.2524
+        }
+      ],
+      "stored_reasons": [
+        "watch_hours_per_week (impact: +0.96)",
+        "engagement_score (impact: +0.38)",
+        "num_profiles (impact: +0.05)"
+      ]
+    },
+    {
+      "customer_id": "CUST04457",
+      "risk_level": "LOW",
+      "actual_churn": 0,
+      "churn_prob": 0.3982,
+      "expected_plus_sum_shap": -0.4128,
+      "margin": -0.4128,
+      "top_contributions": [
+        {
+          "feature": "watch_hours_per_week",
+          "value": 6.6,
+          "shap": -0.3548
+        },
+        {
+          "feature": "payment_failures_3m",
+          "value": 2.0,
+          "shap": 0.165
+        },
+        {
+          "feature": "engagement_score",
+          "value": 2.64,
+          "shap": -0.1021
+        },
+        {
+          "feature": "tenure_months",
+          "value": 23.0,
+          "shap": 0.0942
+        }
+      ],
+      "stored_reasons": [
+        "payment_failures_3m (impact: +0.17)",
+        "tenure_months (impact: +0.09)",
+        "friction_score (impact: +0.07)"
+      ]
+    },
+    {
+      "customer_id": "CUST02014",
+      "risk_level": "LOW",
+      "actual_churn": 0,
+      "churn_prob": 0.2447,
+      "expected_plus_sum_shap": -1.127,
+      "margin": -1.127,
+      "top_contributions": [
+        {
+          "feature": "tenure_months",
+          "value": 26.0,
+          "shap": -0.3791
+        },
+        {
+          "feature": "friction_score",
+          "value": 1.0,
+          "shap": -0.2777
+        },
+        {
+          "feature": "payment_failures_3m",
+          "value": 0.0,
+          "shap": -0.1915
+        },
+        {
+          "feature": "num_profiles",
+          "value": 3.0,
+          "shap": 0.045
+        }
+      ],
+      "stored_reasons": [
+        "num_profiles (impact: +0.04)",
+        "watch_hours_per_week (impact: +0.04)",
+        "last_login_days_ago (impact: +0.01)"
       ]
     }
   ]

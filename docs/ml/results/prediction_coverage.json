@@ -1,15 +1,16 @@
 {
-  "artifact": "churniq_model.pkl (unchanged) for holdout_test + demo; 5 fold models (production recipe) for cv_out_of_fold",
+  "artifact": "churniq_model.pkl for holdout_test + demo; 5 fold models (same production recipe) for cv_out_of_fold",
+  "production_model_config": "regularised_monotonic",
   "environment": {
     "xgboost": "2.1.4",
     "scikit_learn": "1.6.1",
     "python": "3.13.18",
-    "platform": "Linux-6.18.44-fc-v726-x86_64-with-glibc2.39"
+    "platform": "Linux-6.18.44-fc-v819-x86_64-with-glibc2.39"
   },
   "oof": {
     "n_splits": 5,
     "seed": 42,
-    "recipe": "SMOTE (training folds only) + XGB_PARAMS (baseline/production)",
+    "recipe": "regularised_monotonic (same recipe as churniq_model.pkl)",
     "fold_train_rows": [
       3200,
       3200,
@@ -31,57 +32,57 @@
     "churn_prob_in_0_1": true,
     "any_nan": false
   },
-  "test_rows_identical_to_previous_csv": true,
+  "holdout_rows_match_production_model": true,
   "metrics_by_source": {
     "holdout_test": {
       "customers": 1000,
-      "roc_auc": 0.7167,
-      "brier": 0.2189,
-      "mean_predicted": 0.4509,
+      "roc_auc": 0.7597,
+      "brier": 0.1958,
+      "mean_predicted": 0.4345,
       "observed_churn_rate": 0.431,
       "risk_tiers": {
         "HIGH": {
-          "customers": 249,
-          "mean_predicted": 0.8342,
-          "observed_churn_rate": 0.6988
+          "customers": 170,
+          "mean_predicted": 0.8083,
+          "observed_churn_rate": 0.7882
         },
         "MEDIUM": {
-          "customers": 239,
-          "mean_predicted": 0.5451,
-          "observed_churn_rate": 0.5063
+          "customers": 309,
+          "mean_predicted": 0.5503,
+          "observed_churn_rate": 0.5469
         },
         "LOW": {
-          "customers": 512,
-          "mean_predicted": 0.2205,
-          "observed_churn_rate": 0.2656
+          "customers": 521,
+          "mean_predicted": 0.2439,
+          "observed_churn_rate": 0.2457
         }
       }
     },
     "cv_out_of_fold": {
       "customers": 4000,
-      "roc_auc": 0.7462,
-      "brier": 0.2041,
-      "mean_predicted": 0.4475,
+      "roc_auc": 0.7737,
+      "brier": 0.1889,
+      "mean_predicted": 0.4299,
       "observed_churn_rate": 0.4308,
       "risk_tiers": {
         "HIGH": {
-          "customers": 951,
-          "mean_predicted": 0.8458,
-          "observed_churn_rate": 0.7508
+          "customers": 717,
+          "mean_predicted": 0.8144,
+          "observed_churn_rate": 0.8145
         },
         "MEDIUM": {
-          "customers": 1051,
-          "mean_predicted": 0.5442,
-          "observed_churn_rate": 0.491
+          "customers": 1136,
+          "mean_predicted": 0.5456,
+          "observed_churn_rate": 0.5467
         },
         "LOW": {
-          "customers": 1998,
-          "mean_predicted": 0.207,
-          "observed_churn_rate": 0.2467
+          "customers": 2147,
+          "mean_predicted": 0.2403,
+          "observed_churn_rate": 0.2413
         }
       }
     }
   },
-  "clv_formula_max_abs_error_vs_rounded_prob": 2.8084,
+  "clv_formula_max_abs_error_vs_rounded_prob": 2.8516,
   "tiers_consistent": true
 }

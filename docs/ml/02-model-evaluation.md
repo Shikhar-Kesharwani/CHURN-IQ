@@ -1,5 +1,7 @@
 # CHURN-14 — Model Performance Evaluation
 
+> **Model update, 24 Nov 2026 (CHURN-57).** The production model has been replaced by the regularised recipe with monotone constraints (`regularised_monotonic`, [07-monotonic-constraints.md](07-monotonic-constraints.md)). The analysis below describes the **previous** committed model and is kept as the historical record. Its script has been re-run on the new model, and the current figures are in `results/evaluation_results.json`: ROC-AUC 0.7597 (95% CI 0.728 to 0.791), accuracy 0.703, precision 0.679, recall 0.589, F1 0.631, Brier 0.196.
+
 **Artifact evaluated:** `backend/churniq_model.pkl`, the committed production model, **not retrained**.
 **Reproduce:** `cd backend && python evaluate_model.py` (writes `docs/ml/results/evaluation_results.json`)
 

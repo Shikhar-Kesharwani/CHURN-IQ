@@ -82,9 +82,12 @@ def test_dataset_clv_matches_formula(artifacts):
 
 def test_api_clv_matches_hand_calculation_for_sample_customers(api):
     _, client = api
-    # Customers either side of both tier boundaries + extremes (see docs/ml/04)
-    for cid, tier in [('CUST02582', 'High'), ('CUST01546', 'Medium'), ('CUST01199', 'Medium'),
-                      ('CUST03159', 'Low'), ('CUST02849', 'High'), ('CUST01033', 'Low')]:
+    # Customers either side of both tier boundaries + extremes. Re-selected for
+    # the CHURN-57 production model (every churn_prob, hence CLV, changed):
+    # CUST01002 2,999.26 | CUST02554 3,002.81 | CUST02659 7,998.66 |
+    # CUST02779 8,012.52 | CUST01395 51,611.27 (max) | CUST01033 18.61
+    for cid, tier in [('CUST02779', 'High'), ('CUST02659', 'Medium'), ('CUST02554', 'Medium'),
+                      ('CUST01002', 'Low'), ('CUST01395', 'High'), ('CUST01033', 'Low')]:
         j = client.get(f'/customer/{cid}').json()
         hand = j['monthly_charge'] * max(j['tenure_months'], 6) * (1 - j['churn_prob'])
         assert abs(hand - j['clv_score']) < 3, cid          # churn_prob shown rounded to 4 dp

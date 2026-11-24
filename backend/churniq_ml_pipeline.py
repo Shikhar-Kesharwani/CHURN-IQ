@@ -74,6 +74,7 @@
 # Plotting, Faker and SHAP are imported inside the functions that need them,
 # so that tests and the evaluation script can import this module cheaply.
 import argparse
+import json
 import os
 import pickle
 import random
@@ -123,12 +124,52 @@ SMOTE_PARAMS = dict(random_state=SEED, k_neighbors=5)
 # gain [+0.018, +0.052]) and improved calibration. See
 # docs/ml/05-model-improvement-research.md. Switching production to it
 # requires regenerating the committed artifacts — a team decision.
-MODEL_CONFIGS = {
-    'baseline':    {'xgb_params': XGB_PARAMS, 'smote': True},
-    'regularised': {'xgb_params': dict(XGB_PARAMS, max_depth=2, learning_rate=0.03,
-                                       n_estimators=400, min_child_weight=1),
-                    'smote': False},
+# Expected direction of churn risk as each feature INCREASES (CHURN-45,
+# docs/ml/07-monotonic-constraints.md). Taken from the churn_score terms in
+# generate_dataset: risk falls with watch hours, logins and tenure, and rises
+# with payment failures and support tickets. Engineered features that /whatif
+# recomputes from those inputs get the matching sign. Every other feature
+# (incl. monthly_charge, which has no direct term) is unconstrained.
+MONOTONE_DIRECTIONS = {
+    'watch_hours_per_week': -1,
+    'logins_last_30_days':  -1,
+    'tenure_months':        -1,
+    'payment_failures_3m':  +1,
+    'support_tickets':      +1,
+    'engagement_score':     -1,
+    'friction_score':       +1,
+    'is_new_customer':      +1,
 }
+
+_REGULARISED_PARAMS = dict(XGB_PARAMS, max_depth=2, learning_rate=0.03,
+                           n_estimators=400, min_child_weight=1)
+
+MODEL_CONFIGS = {
+    'baseline':    {'xgb_params': XGB_PARAMS, 'smote': True, 'monotone': False},
+    'regularised': {'xgb_params': _REGULARISED_PARAMS, 'smote': False, 'monotone': False},
+    # CHURN-45 decision, adopted in CHURN-57: CHURN-17's regularised recipe plus
+    # monotone constraints. Test ROC-AUC 0.760 (vs 0.724 for 'baseline'), and
+    # What-If risk never moves against MONOTONE_DIRECTIONS for any customer.
+    'regularised_monotonic': {'xgb_params': _REGULARISED_PARAMS, 'smote': False, 'monotone': True},
+}
+
+# The recipe that produces the committed production artifacts
+# (churniq_model.pkl, oof_fold_models.pkl, customer_predictions.csv).
+PRODUCTION_CONFIG = 'regularised_monotonic'
+
+
+def monotone_constraint_tuple(columns) -> tuple:
+    """XGBoost monotone_constraints in the given column order."""
+    return tuple(int(MONOTONE_DIRECTIONS.get(c, 0)) for c in columns)
+
+
+def xgb_params_for(model_config: str, columns) -> dict:
+    """XGBoost parameters for a model config, with constraints for these columns."""
+    cfg = MODEL_CONFIGS[model_config]
+    params = dict(cfg['xgb_params'])
+    if cfg.get('monotone'):
+        params['monotone_constraints'] = monotone_constraint_tuple(columns)
+    return params
 
 # Rows that were appended to the dataset AFTER the pipeline ran (demo data).
 # They were never part of the train/test split and must be excluded when the
@@ -683,7 +724,7 @@ def oof_folds(X_train: pd.DataFrame, y_train: pd.Series, n_splits: int = OOF_N_S
 
 
 def build_oof_predictions(df: pd.DataFrame, X_train: pd.DataFrame, y_train: pd.Series,
-                          model_config: str = 'baseline', n_splits: int = OOF_N_SPLITS,
+                          model_config: str = PRODUCTION_CONFIG, n_splits: int = OOF_N_SPLITS,
                           seed: int = SEED):
     """Return (predictions DataFrame for all training customers, list of fold models)."""
     cfg = MODEL_CONFIGS[model_config]
@@ -692,7 +733,7 @@ def build_oof_predictions(df: pd.DataFrame, X_train: pd.DataFrame, y_train: pd.S
         X_fit, y_fit = X_train.iloc[tr], y_train.iloc[tr]
         if cfg['smote']:
             X_fit, y_fit = apply_smote(X_fit, y_fit, seed)
-        fold_model = train_model(X_fit, y_fit, cfg['xgb_params'])
+        fold_model = train_model(X_fit, y_fit, xgb_params_for(model_config, X_train.columns))
         X_val, y_val = X_train.iloc[va], y_train.iloc[va]
         prob = fold_model.predict_proba(X_val)[:, 1]
         _, shap_values = compute_shap(fold_model, X_val)
@@ -721,7 +762,13 @@ def finalise_predictions(*parts: pd.DataFrame) -> pd.DataFrame:
 # =============================================================================
 
 def main(output_dir: str = 'pipeline_outputs', make_plots: bool = True,
-         model_config: str = 'baseline') -> dict:
+         model_config: str = PRODUCTION_CONFIG, dataset_path: str = None) -> dict:
+    """
+    Full pipeline. With dataset_path, train on that existing dataset instead of
+    generating one (names/emails/demo rows are kept), write only the model,
+    feature names and model_metadata.json, then stop: run
+    generate_predictions.py next to rebuild predictions and fold models.
+    """
     config = MODEL_CONFIGS[model_config]
     os.makedirs(output_dir, exist_ok=True)
     out = lambda name: os.path.join(output_dir, name)
@@ -731,10 +778,15 @@ def main(output_dir: str = 'pipeline_outputs', make_plots: bool = True,
     print("   OTT Subscription Churn Prediction System")
     print("=" * 65)
 
-    print("\n  PART A — DATASET GENERATION")
-    df = generate_dataset()
-    df.to_csv(out('ott_churn_dataset.csv'), index=False)
-    print(f"    {len(df)} customers | churn rate {df['churn'].mean():.1%} → {out('ott_churn_dataset.csv')}")
+    if dataset_path:
+        print(f"\n  PART A — DATASET (existing: {dataset_path})")
+        df = pd.read_csv(dataset_path)
+        make_plots = False
+    else:
+        print("\n  PART A — DATASET GENERATION")
+        df = generate_dataset()
+        df.to_csv(out('ott_churn_dataset.csv'), index=False)
+    print(f"    {len(df)} customers | churn rate {df['churn'].mean():.1%}")
 
     if make_plots:
         print("\n  PART B — EDA")
@@ -755,7 +807,8 @@ def main(output_dir: str = 'pipeline_outputs', make_plots: bool = True,
         X_train_fit, y_train_fit = X_train, y_train
 
     print(f"\n  PART E — TRAINING (model config: {model_config})")
-    model = train_model(X_train_fit, y_train_fit, config['xgb_params'])
+    params = xgb_params_for(model_config, X.columns)
+    model = train_model(X_train_fit, y_train_fit, params)
     with open(out('churniq_model.pkl'), 'wb') as f:
         pickle.dump(model, f)
     with open(out('feature_names.pkl'), 'wb') as f:
@@ -766,6 +819,24 @@ def main(output_dir: str = 'pipeline_outputs', make_plots: bool = True,
     metrics = evaluate(model, X_test, y_test)
     for k in ('accuracy', 'precision', 'recall', 'f1', 'roc_auc'):
         print(f"    {k:<10}: {metrics[k]:.4f}")
+
+    import xgboost
+    with open(out('model_metadata.json'), 'w') as f:
+        json.dump({
+            'model_config': model_config, 'smote': config['smote'], 'seed': SEED,
+            'xgb_params': {k: (list(v) if isinstance(v, tuple) else v) for k, v in params.items()},
+            'monotone_directions': MONOTONE_DIRECTIONS if config.get('monotone') else {},
+            'split': {'test_size': TEST_SIZE, 'stratified': True, 'random_state': SEED},
+            'train_rows': int(len(X_train)), 'test_rows': int(len(X_test)),
+            'dataset': dataset_path or 'generated (generate_dataset, seed %d)' % SEED,
+            'test_metrics': {k: round(metrics[k], 4)
+                             for k in ('accuracy', 'precision', 'recall', 'f1', 'roc_auc')},
+            'xgboost_version': xgboost.__version__,
+        }, f, indent=2)
+
+    if dataset_path:
+        print("\n  Model trained on the existing dataset. Next: python generate_predictions.py")
+        return metrics
     if make_plots:
         save_evaluation_plots(model, X_test, y_test, metrics, out('model_evaluation.png'))
 
@@ -800,8 +871,13 @@ if __name__ == '__main__':
                         help="Where to write artifacts (default: pipeline_outputs/). "
                              "Using '.' overwrites the committed backend files.")
     parser.add_argument('--no-plots', action='store_true', help='Skip PNG generation.')
-    parser.add_argument('--model-config', choices=sorted(MODEL_CONFIGS), default='baseline',
-                        help="'baseline' = current production recipe; "
-                             "'regularised' = CHURN-17 recommendation.")
+    parser.add_argument('--model-config', choices=sorted(MODEL_CONFIGS), default=PRODUCTION_CONFIG,
+                        help="'regularised_monotonic' = production (CHURN-45/57); "
+                             "'baseline' = previous production recipe; "
+                             "'regularised' = CHURN-17 recipe without constraints.")
+    parser.add_argument('--from-dataset', default=None,
+                        help="Train on an existing dataset CSV instead of generating one, "
+                             "write only the model, feature names and model_metadata.json.")
     args = parser.parse_args()
-    main(args.output_dir, make_plots=not args.no_plots, model_config=args.model_config)
+    main(args.output_dir, make_plots=not args.no_plots, model_config=args.model_config,
+         dataset_path=args.from_dataset)

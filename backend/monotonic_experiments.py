@@ -70,6 +70,8 @@ ENGINEERED_DIRECTIONS = {
     'is_new_customer':  +1,   # 1 when tenure < 6 (falls as tenure rises)
 }
 CONSTRAINTS = {**{k: v for k, v in WHATIF_DIRECTIONS.items() if v != 0}, **ENGINEERED_DIRECTIONS}
+# The adopted production config (CHURN-57) uses the same directions.
+assert CONSTRAINTS == pipeline.MONOTONE_DIRECTIONS
 
 # Sweep grids (within the training range of each feature).
 GRIDS = {

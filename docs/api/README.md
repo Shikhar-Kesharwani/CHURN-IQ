@@ -273,16 +273,24 @@ The automated suite still mocks Gemini, so CI never needs a real key. The live c
 
 | Change | Mean Δ churn prob | Share ↑ | Share ↓ | Test asserts |
 |---|---|---|---|---|
-| `payment_failures_3m` → 4 | +0.352 | 96% | 3% | mean > 0.1, ≥ 90% ↑ |
-| `support_tickets` → 5 | +0.341 | 96% | 1% | mean > 0.1, ≥ 90% ↑ |
-| `tenure_months` → 1 | +0.370 | 95% | 2% | mean > 0.1, ≥ 90% ↑ |
-| `watch_hours_per_week` → 0.5 | +0.289 | 88% | 7% | mean > 0.1, ≥ 80% ↑ |
-| `payment_failures_3m` → 0 | −0.085 | 1% | 39% (60% already 0) | mean < 0, ≤ 2% rise > 0.01 |
-| `tenure_months` → 72 | −0.061 | 35% | 62% | mean < 0 |
-| `watch_hours_per_week` → 40 | −0.061 | **42%** | 56% | mean < 0 |
-| `logins_last_30_days` → 26 | −0.052 | 32% | 68% | mean < 0 |
+| `payment_failures_3m` → 4 | +0.364 | 97% | 0% | mean > 0.1, ≥ 90% ↑ |
+| `support_tickets` → 5 | +0.328 | 97% | 0% | mean > 0.1, ≥ 90% ↑ |
+| `tenure_months` → 1 | +0.330 | 97% | 0% | mean > 0.1, ≥ 90% ↑ |
+| `watch_hours_per_week` → 0.5 | +0.294 | 92% | 0% | mean > 0.1, ≥ 80% ↑ |
+| `payment_failures_3m` → 0 | −0.077 | 0% | 39% (61% already 0) | mean < 0, ≤ 2% rise > 0.01 |
+| `tenure_months` → 72 | −0.100 | 0% | 85% | mean < 0 |
+| `watch_hours_per_week` → 40 | −0.113 | **0%** | 88% | mean < 0 |
+| `logins_last_30_days` → 26 | −0.037 | **0%** | 99% | mean < 0 |
 
-**Model observation (not an API defect).** Engagement and loyalty improvements lower risk on average, but **not monotonically per customer**. Raising watch hours to 40 increases predicted risk for 42% of customers. The XGBoost model has no monotonic constraints, and E2's research (docs/ml/05) found 47% of SHAP weight on noise features. The What-If simulator faithfully reports this behaviour, so analysts should read single-customer What-If results as "what the model says", not causal effects. Raised for the ML owners in §11.
+The remaining share in each row is customers already at that value, whose risk does not change. Re-measured on 24 Nov 2026 with the CHURN-57 production model, through `POST /whatif`, on the same 400-customer sample as `tests/test_whatif_api.py`.
+
+**Monotonic per customer since CHURN-57.**
+
+* **Before:** the earlier production model was not monotonic. Raising watch hours to 40 increased predicted risk for **42%** of customers. Across the full value range, about 99% of held-out customers had a wrong-direction step for watch hours, logins and tenure.
+* **Now:** the production recipe (`regularised_monotonic`) applies XGBoost monotone constraints. Risk can only fall as watch hours, logins and tenure rise, and only rise with payment failures and support tickets. That holds for every customer, on both the production model and the out-of-fold fold models. See [docs/ml/07-monotonic-constraints.md](../ml/07-monotonic-constraints.md).
+* **Tests:** `tests/test_monotonic_constraints.py` asserts this per customer through this endpoint.
+* **`monthly_charge` is unconstrained**, because it has no monotone effect in the data.
+* **Interpretation is unchanged:** What-If results describe the model, not causal effects.
 
 ---
 
@@ -431,7 +439,7 @@ All six were found in this review, fixed on this branch, and linked to their sto
 1. **Gemini live testing is manual.** The automated tests mock Gemini, so they need no API key. A manual live test after PR #3 succeeded (200, `ai_generated: true`, `generated_by: gemini-3.5-flash`; §5.3). It is not repeated automatically.
 2. **No live SMTP test.** SMTP was mocked; no email was sent.
 3. **`/send-email` is now protected by a bearer token and a rate limit** (CHURN-44, [§12](#12-email-endpoint-security-churn-44)). The limiter is in-memory and per process. The other endpoints are still unauthenticated with `allow_origins=["*"]`. They are read-only or compute-only and send nothing.
-4. **What-If is not monotonic per customer** (§7). This is a model property for the E2/ML owners: consider XGBoost `monotone_constraints` or the regularised configuration from docs/ml/05.
+4. ~~**What-If is not monotonic per customer** (§7).~~ **Resolved** by CHURN-45 (evaluation and decision) and CHURN-57 (adoption): the production model now uses XGBoost monotone constraints. See §7 and docs/ml/07.
 5. **`requirements-dev.txt` cannot be installed on Python 3.10.13** (`matplotlib==3.11.2` needs ≥ 3.11), while `runtime.txt` says 3.10.13. This is pre-existing and not changed here, because it belongs to the E2 tooling. The 3.10-compatible install is in §9.1.
 6. **`GET /customers` defaults to `limit=500`**, so the Risk Table page shows only 500 of 5,001 customers (pre-existing UI behaviour, unchanged).
 7. **What-If bounds are wider than the training data**, and the model is flat beyond the training range (§3).
