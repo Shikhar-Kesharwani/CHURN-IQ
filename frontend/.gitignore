@@ -9,3 +9,7 @@ dist-ssr/
 !.env.production
 .vscode/
 .idea/
+
+# Playwright (CHURN-55)
+/test-results/
+/playwright-report/
