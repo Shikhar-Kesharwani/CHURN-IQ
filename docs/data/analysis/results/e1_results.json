@@ -1,0 +1,1430 @@
+{
+  "inputs": {
+    "dataset": {
+      "path": "backend/ott_churn_dataset.csv",
+      "git_blob": "1975eeab8c4dfc8f75a3da5a20c010e11612c564",
+      "sha256": "0f680f01e0adad1c02ff2d7702737b13f49961ef8147e0715e0e3b2fa33fd521"
+    },
+    "predictions": {
+      "path": "backend/customer_predictions.csv",
+      "git_blob": "575d24b92fafef8808ceace4c85ef1cfe001b2a7",
+      "sha256": "b102a47f64540958b463bdd1e6cf1cb99ab2a3e35ef08d99347f82825b3642d6"
+    }
+  },
+  "churn7_quality": {
+    "shape": [
+      5001,
+      22
+    ],
+    "columns": [
+      "customer_id",
+      "name",
+      "age",
+      "gender",
+      "country",
+      "plan_type",
+      "monthly_charge",
+      "tenure_months",
+      "watch_hours_per_week",
+      "num_profiles",
+      "logins_last_30_days",
+      "last_login_days_ago",
+      "preferred_genre",
+      "device_type",
+      "payment_method",
+      "payment_failures_3m",
+      "support_tickets",
+      "clv_score",
+      "clv_segment",
+      "churn_probability",
+      "churn",
+      "email"
+    ],
+    "missing_per_column": {
+      "customer_id": 0,
+      "name": 0,
+      "age": 0,
+      "gender": 0,
+      "country": 0,
+      "plan_type": 0,
+      "monthly_charge": 0,
+      "tenure_months": 0,
+      "watch_hours_per_week": 0,
+      "num_profiles": 0,
+      "logins_last_30_days": 0,
+      "last_login_days_ago": 0,
+      "preferred_genre": 0,
+      "device_type": 0,
+      "payment_method": 0,
+      "payment_failures_3m": 0,
+      "support_tickets": 0,
+      "clv_score": 0,
+      "clv_segment": 0,
+      "churn_probability": 0,
+      "churn": 0,
+      "email": 0
+    },
+    "missing_total": 0,
+    "blank_string_cells": 0,
+    "duplicate_rows": 0,
+    "duplicate_rows_ignoring_id": 0,
+    "duplicate_customer_id": 0,
+    "duplicate_customer_id_case_space_insensitive": 0,
+    "customer_id_bad_format": [],
+    "numeric_ranges": {
+      "age": {
+        "allowed": [
+          18,
+          65
+        ],
+        "observed": [
+          18.0,
+          57.0
+        ],
+        "out_of_range": 0
+      },
+      "monthly_charge": {
+        "allowed": [
+          199,
+          799
+        ],
+        "observed": [
+          199.0,
+          799.0
+        ],
+        "out_of_range": 0
+      },
+      "tenure_months": {
+        "allowed": [
+          1,
+          72
+        ],
+        "observed": [
+          1.0,
+          72.0
+        ],
+        "out_of_range": 0
+      },
+      "watch_hours_per_week": {
+        "allowed": [
+          0.5,
+          40.0
+        ],
+        "observed": [
+          0.5,
+          40.0
+        ],
+        "out_of_range": 0
+      },
+      "num_profiles": {
+        "allowed": [
+          1,
+          5
+        ],
+        "observed": [
+          1.0,
+          5.0
+        ],
+        "out_of_range": 0
+      },
+      "logins_last_30_days": {
+        "allowed": [
+          0,
+          60
+        ],
+        "observed": [
+          1.0,
+          26.0
+        ],
+        "out_of_range": 0
+      },
+      "last_login_days_ago": {
+        "allowed": [
+          0,
+          90
+        ],
+        "observed": [
+          0.0,
+          43.0
+        ],
+        "out_of_range": 0
+      },
+      "payment_failures_3m": {
+        "allowed": [
+          0,
+          4
+        ],
+        "observed": [
+          0.0,
+          4.0
+        ],
+        "out_of_range": 0
+      },
+      "support_tickets": {
+        "allowed": [
+          0,
+          5
+        ],
+        "observed": [
+          0.0,
+          5.0
+        ],
+        "out_of_range": 0
+      },
+      "churn_probability": {
+        "allowed": [
+          0.0,
+          1.0
+        ],
+        "observed": [
+          0.0272,
+          0.994
+        ],
+        "out_of_range": 0
+      },
+      "clv_score": {
+        "allowed": [
+          0.0,
+          null
+        ],
+        "observed": [
+          17.86,
+          53645.69
+        ],
+        "out_of_range": 0
+      }
+    },
+    "non_integer_values": {
+      "age": 0,
+      "monthly_charge": 0,
+      "tenure_months": 0,
+      "num_profiles": 0,
+      "logins_last_30_days": 0,
+      "last_login_days_ago": 0,
+      "payment_failures_3m": 0,
+      "support_tickets": 0,
+      "churn": 0
+    },
+    "watch_hours_more_than_1dp": 0,
+    "categories": {
+      "gender": {
+        "allowed": [
+          "Female",
+          "Male",
+          "Other"
+        ],
+        "counts": {
+          "Other": 1683,
+          "Male": 1661,
+          "Female": 1657
+        },
+        "unknown_values": [],
+        "leading_trailing_space": 0
+      },
+      "country": {
+        "allowed": [
+          "Canada",
+          "India",
+          "Singapore",
+          "UAE",
+          "UK",
+          "USA"
+        ],
+        "counts": {
+          "India": 3987,
+          "Singapore": 224,
+          "UAE": 215,
+          "UK": 196,
+          "Canada": 191,
+          "USA": 188
+        },
+        "unknown_values": [],
+        "leading_trailing_space": 0
+      },
+      "plan_type": {
+        "allowed": [
+          "Basic",
+          "Premium",
+          "Standard"
+        ],
+        "counts": {
+          "Basic": 2226,
+          "Standard": 1795,
+          "Premium": 980
+        },
+        "unknown_values": [],
+        "leading_trailing_space": 0
+      },
+      "preferred_genre": {
+        "allowed": [
+          "Action",
+          "Comedy",
+          "Documentary",
+          "Drama",
+          "Kids",
+          "Romance",
+          "Thriller"
+        ],
+        "counts": {
+          "Documentary": 738,
+          "Comedy": 732,
+          "Kids": 727,
+          "Drama": 723,
+          "Thriller": 708,
+          "Romance": 694,
+          "Action": 679
+        },
+        "unknown_values": [],
+        "leading_trailing_space": 0
+      },
+      "device_type": {
+        "allowed": [
+          "Laptop",
+          "Mobile",
+          "Smart TV",
+          "Tablet"
+        ],
+        "counts": {
+          "Mobile": 1292,
+          "Laptop": 1286,
+          "Smart TV": 1216,
+          "Tablet": 1207
+        },
+        "unknown_values": [],
+        "leading_trailing_space": 0
+      },
+      "payment_method": {
+        "allowed": [
+          "Credit Card",
+          "Debit Card",
+          "UPI",
+          "Wallet"
+        ],
+        "counts": {
+          "Wallet": 1305,
+          "UPI": 1270,
+          "Debit Card": 1254,
+          "Credit Card": 1172
+        },
+        "unknown_values": [],
+        "leading_trailing_space": 0
+      },
+      "clv_segment": {
+        "allowed": [
+          "High",
+          "Low",
+          "Medium"
+        ],
+        "counts": {
+          "Low": 2140,
+          "Medium": 1593,
+          "High": 1268
+        },
+        "unknown_values": [],
+        "leading_trailing_space": 0
+      }
+    },
+    "plan_price_mismatch": 0,
+    "churn_label_values": {
+      "0": 2846,
+      "1": 2155
+    },
+    "churn_label_non_binary": 0,
+    "clv_formula_max_abs_diff_excl_demo": 2.76,
+    "clv_segment_mismatch": 0,
+    "email_bad_format": 0,
+    "repeated_name": 53,
+    "repeated_email": 3,
+    "demo_row": {
+      "present": true,
+      "clv_score": 500.0,
+      "clv_formula_value": 47.76,
+      "churn_probability": 0.96,
+      "churn": 1
+    },
+    "notes": {
+      "logins_observed_max_vs_allowed": [
+        26,
+        60
+      ],
+      "last_login_observed_max_vs_allowed": [
+        43,
+        90
+      ],
+      "age_observed_max_vs_allowed": [
+        57,
+        65
+      ]
+    }
+  },
+  "churn7_predictions_join": {
+    "dataset_rows": 5001,
+    "prediction_rows": 5001,
+    "matched": 5001,
+    "dataset_only": 0,
+    "predictions_only": 0,
+    "churn_prob_missing": 0,
+    "churn_prob_out_of_range": 0,
+    "actual_churn_equals_churn": true,
+    "prediction_source": {
+      "cv_out_of_fold": 4000,
+      "holdout_test": 1000,
+      "demo": 1
+    }
+  },
+  "churn8_behaviour": {
+    "overall_churn": {
+      "n": 5001,
+      "churned": 2155,
+      "pct": 43.1
+    },
+    "variables": {
+      "watch_hours_per_week": {
+        "distribution": {
+          "count": 5001.0,
+          "mean": 8.33,
+          "std": 8.0,
+          "min": 0.5,
+          "25%": 2.5,
+          "50%": 5.8,
+          "75%": 11.5,
+          "max": 40.0
+        },
+        "mean_churned": 6.73,
+        "mean_retained": 9.54,
+        "auc": 0.355,
+        "direction": "higher -> less churn",
+        "strength_abs_auc_minus_0_5": 0.145,
+        "point_biserial_r": -0.174,
+        "cramers_v": 0.297,
+        "churn_by_group": [
+          {
+            "group": "0.5-2",
+            "n": 1074,
+            "churned": 753,
+            "observed_churn_pct": 70.1,
+            "ci95_pct": [
+              67.3,
+              72.8
+            ]
+          },
+          {
+            "group": "2-5",
+            "n": 1178,
+            "churned": 501,
+            "observed_churn_pct": 42.5,
+            "ci95_pct": [
+              39.7,
+              45.4
+            ]
+          },
+          {
+            "group": "5-10",
+            "n": 1240,
+            "churned": 398,
+            "observed_churn_pct": 32.1,
+            "ci95_pct": [
+              29.6,
+              34.7
+            ]
+          },
+          {
+            "group": "10-20",
+            "n": 1061,
+            "churned": 360,
+            "observed_churn_pct": 33.9,
+            "ci95_pct": [
+              31.1,
+              36.8
+            ]
+          },
+          {
+            "group": "20-40",
+            "n": 448,
+            "churned": 143,
+            "observed_churn_pct": 31.9,
+            "ci95_pct": [
+              27.8,
+              36.4
+            ]
+          }
+        ]
+      },
+      "logins_last_30_days": {
+        "distribution": {
+          "count": 5001.0,
+          "mean": 11.89,
+          "std": 3.39,
+          "min": 1.0,
+          "25%": 9.0,
+          "50%": 12.0,
+          "75%": 14.0,
+          "max": 26.0
+        },
+        "mean_churned": 11.91,
+        "mean_retained": 11.88,
+        "auc": 0.504,
+        "direction": "higher -> more churn",
+        "strength_abs_auc_minus_0_5": 0.004,
+        "point_biserial_r": 0.004,
+        "cramers_v": 0.039,
+        "churn_by_group": [
+          {
+            "group": "0-5",
+            "n": 91,
+            "churned": 48,
+            "observed_churn_pct": 52.7,
+            "ci95_pct": [
+              42.6,
+              62.7
+            ]
+          },
+          {
+            "group": "6-10",
+            "n": 1709,
+            "churned": 736,
+            "observed_churn_pct": 43.1,
+            "ci95_pct": [
+              40.7,
+              45.4
+            ]
+          },
+          {
+            "group": "11-15",
+            "n": 2474,
+            "churned": 1036,
+            "observed_churn_pct": 41.9,
+            "ci95_pct": [
+              39.9,
+              43.8
+            ]
+          },
+          {
+            "group": "16-20",
+            "n": 681,
+            "churned": 315,
+            "observed_churn_pct": 46.3,
+            "ci95_pct": [
+              42.5,
+              50.0
+            ]
+          },
+          {
+            "group": "21+",
+            "n": 46,
+            "churned": 20,
+            "observed_churn_pct": 43.5,
+            "ci95_pct": [
+              30.2,
+              57.8
+            ]
+          }
+        ]
+      },
+      "payment_failures_3m": {
+        "distribution": {
+          "count": 5001.0,
+          "mean": 0.73,
+          "std": 1.09,
+          "min": 0.0,
+          "25%": 0.0,
+          "50%": 0.0,
+          "75%": 1.0,
+          "max": 4.0
+        },
+        "mean_churned": 1.05,
+        "mean_retained": 0.49,
+        "auc": 0.62,
+        "direction": "higher -> more churn",
+        "strength_abs_auc_minus_0_5": 0.12,
+        "point_biserial_r": 0.255,
+        "cramers_v": 0.257,
+        "churn_by_group": [
+          {
+            "group": "0",
+            "n": 3001,
+            "churned": 1049,
+            "observed_churn_pct": 35.0,
+            "ci95_pct": [
+              33.3,
+              36.7
+            ]
+          },
+          {
+            "group": "1",
+            "n": 996,
+            "churned": 453,
+            "observed_churn_pct": 45.5,
+            "ci95_pct": [
+              42.4,
+              48.6
+            ]
+          },
+          {
+            "group": "2",
+            "n": 498,
+            "churned": 269,
+            "observed_churn_pct": 54.0,
+            "ci95_pct": [
+              49.6,
+              58.3
+            ]
+          },
+          {
+            "group": "3",
+            "n": 350,
+            "churned": 259,
+            "observed_churn_pct": 74.0,
+            "ci95_pct": [
+              69.2,
+              78.3
+            ]
+          },
+          {
+            "group": "4",
+            "n": 156,
+            "churned": 125,
+            "observed_churn_pct": 80.1,
+            "ci95_pct": [
+              73.2,
+              85.6
+            ]
+          }
+        ]
+      },
+      "support_tickets": {
+        "distribution": {
+          "count": 5001.0,
+          "mean": 0.94,
+          "std": 1.24,
+          "min": 0.0,
+          "25%": 0.0,
+          "50%": 0.0,
+          "75%": 1.0,
+          "max": 5.0
+        },
+        "mean_churned": 1.18,
+        "mean_retained": 0.76,
+        "auc": 0.584,
+        "direction": "higher -> more churn",
+        "strength_abs_auc_minus_0_5": 0.084,
+        "point_biserial_r": 0.172,
+        "cramers_v": 0.175,
+        "churn_by_group": [
+          {
+            "group": "0",
+            "n": 2527,
+            "churned": 932,
+            "observed_churn_pct": 36.9,
+            "ci95_pct": [
+              35.0,
+              38.8
+            ]
+          },
+          {
+            "group": "1",
+            "n": 1237,
+            "churned": 539,
+            "observed_churn_pct": 43.6,
+            "ci95_pct": [
+              40.8,
+              46.4
+            ]
+          },
+          {
+            "group": "2",
+            "n": 610,
+            "churned": 295,
+            "observed_churn_pct": 48.4,
+            "ci95_pct": [
+              44.4,
+              52.3
+            ]
+          },
+          {
+            "group": "3",
+            "n": 354,
+            "churned": 206,
+            "observed_churn_pct": 58.2,
+            "ci95_pct": [
+              53.0,
+              63.2
+            ]
+          },
+          {
+            "group": "4",
+            "n": 181,
+            "churned": 109,
+            "observed_churn_pct": 60.2,
+            "ci95_pct": [
+              52.9,
+              67.1
+            ]
+          },
+          {
+            "group": "5",
+            "n": 92,
+            "churned": 74,
+            "observed_churn_pct": 80.4,
+            "ci95_pct": [
+              71.2,
+              87.3
+            ]
+          }
+        ]
+      },
+      "plan_type": {
+        "distribution": {
+          "Basic": 2226,
+          "Standard": 1795,
+          "Premium": 980
+        },
+        "cramers_v": 0.029,
+        "churn_by_group": [
+          {
+            "group": "Basic",
+            "n": 2226,
+            "churned": 978,
+            "observed_churn_pct": 43.9,
+            "ci95_pct": [
+              41.9,
+              46.0
+            ]
+          },
+          {
+            "group": "Premium",
+            "n": 980,
+            "churned": 394,
+            "observed_churn_pct": 40.2,
+            "ci95_pct": [
+              37.2,
+              43.3
+            ]
+          },
+          {
+            "group": "Standard",
+            "n": 1795,
+            "churned": 783,
+            "observed_churn_pct": 43.6,
+            "ci95_pct": [
+              41.3,
+              45.9
+            ]
+          }
+        ]
+      },
+      "tenure_months": {
+        "distribution": {
+          "count": 5001.0,
+          "mean": 23.49,
+          "std": 16.08,
+          "min": 1.0,
+          "25%": 11.0,
+          "50%": 20.0,
+          "75%": 32.0,
+          "max": 72.0
+        },
+        "mean_churned": 20.92,
+        "mean_retained": 25.43,
+        "auc": 0.407,
+        "direction": "higher -> less churn",
+        "strength_abs_auc_minus_0_5": 0.093,
+        "point_biserial_r": -0.139,
+        "cramers_v": 0.187,
+        "churn_by_group": [
+          {
+            "group": "1-5",
+            "n": 433,
+            "churned": 283,
+            "observed_churn_pct": 65.4,
+            "ci95_pct": [
+              60.8,
+              69.7
+            ]
+          },
+          {
+            "group": "6-12",
+            "n": 1007,
+            "churned": 461,
+            "observed_churn_pct": 45.8,
+            "ci95_pct": [
+              42.7,
+              48.9
+            ]
+          },
+          {
+            "group": "13-24",
+            "n": 1622,
+            "churned": 762,
+            "observed_churn_pct": 47.0,
+            "ci95_pct": [
+              44.6,
+              49.4
+            ]
+          },
+          {
+            "group": "25-48",
+            "n": 1493,
+            "churned": 493,
+            "observed_churn_pct": 33.0,
+            "ci95_pct": [
+              30.7,
+              35.4
+            ]
+          },
+          {
+            "group": "49-72",
+            "n": 446,
+            "churned": 156,
+            "observed_churn_pct": 35.0,
+            "ci95_pct": [
+              30.7,
+              39.5
+            ]
+          }
+        ]
+      }
+    },
+    "ranking_by_cramers_v": [
+      "watch_hours_per_week",
+      "payment_failures_3m",
+      "tenure_months",
+      "support_tickets",
+      "logins_last_30_days",
+      "plan_type"
+    ]
+  },
+  "churn9_segments": {
+    "one_way": {
+      "plan_type": {
+        "rows": [
+          {
+            "group": "Basic",
+            "n": 2226,
+            "churned": 978,
+            "observed_churn_pct": 43.9,
+            "ci95_pct": [
+              41.9,
+              46.0
+            ],
+            "mean_predicted_pct": 43.4
+          },
+          {
+            "group": "Premium",
+            "n": 980,
+            "churned": 394,
+            "observed_churn_pct": 40.2,
+            "ci95_pct": [
+              37.2,
+              43.3
+            ],
+            "mean_predicted_pct": 40.7
+          },
+          {
+            "group": "Standard",
+            "n": 1795,
+            "churned": 783,
+            "observed_churn_pct": 43.6,
+            "ci95_pct": [
+              41.3,
+              45.9
+            ],
+            "mean_predicted_pct": 44.0
+          }
+        ],
+        "cramers_v": 0.029
+      },
+      "device_type": {
+        "rows": [
+          {
+            "group": "Laptop",
+            "n": 1286,
+            "churned": 511,
+            "observed_churn_pct": 39.7,
+            "ci95_pct": [
+              37.1,
+              42.4
+            ],
+            "mean_predicted_pct": 41.7
+          },
+          {
+            "group": "Mobile",
+            "n": 1292,
+            "churned": 588,
+            "observed_churn_pct": 45.5,
+            "ci95_pct": [
+              42.8,
+              48.2
+            ],
+            "mean_predicted_pct": 44.0
+          },
+          {
+            "group": "Smart TV",
+            "n": 1216,
+            "churned": 530,
+            "observed_churn_pct": 43.6,
+            "ci95_pct": [
+              40.8,
+              46.4
+            ],
+            "mean_predicted_pct": 43.6
+          },
+          {
+            "group": "Tablet",
+            "n": 1207,
+            "churned": 526,
+            "observed_churn_pct": 43.6,
+            "ci95_pct": [
+              40.8,
+              46.4
+            ],
+            "mean_predicted_pct": 43.1
+          }
+        ],
+        "cramers_v": 0.043
+      },
+      "tenure_bucket": {
+        "rows": [
+          {
+            "group": "0-3m",
+            "n": 206,
+            "churned": 149,
+            "observed_churn_pct": 72.3,
+            "ci95_pct": [
+              65.9,
+              78.0
+            ],
+            "mean_predicted_pct": 70.1
+          },
+          {
+            "group": "3-6m",
+            "n": 336,
+            "churned": 193,
+            "observed_churn_pct": 57.4,
+            "ci95_pct": [
+              52.1,
+              62.6
+            ],
+            "mean_predicted_pct": 55.7
+          },
+          {
+            "group": "6-12m",
+            "n": 898,
+            "churned": 402,
+            "observed_churn_pct": 44.8,
+            "ci95_pct": [
+              41.5,
+              48.0
+            ],
+            "mean_predicted_pct": 47.2
+          },
+          {
+            "group": "1-2yr",
+            "n": 1622,
+            "churned": 762,
+            "observed_churn_pct": 47.0,
+            "ci95_pct": [
+              44.6,
+              49.4
+            ],
+            "mean_predicted_pct": 46.0
+          },
+          {
+            "group": "2yr+",
+            "n": 1939,
+            "churned": 649,
+            "observed_churn_pct": 33.5,
+            "ci95_pct": [
+              31.4,
+              35.6
+            ],
+            "mean_predicted_pct": 33.7
+          }
+        ],
+        "cramers_v": 0.192
+      },
+      "preferred_genre": {
+        "rows": [
+          {
+            "group": "Action",
+            "n": 679,
+            "churned": 279,
+            "observed_churn_pct": 41.1,
+            "ci95_pct": [
+              37.4,
+              44.8
+            ],
+            "mean_predicted_pct": 42.6
+          },
+          {
+            "group": "Comedy",
+            "n": 732,
+            "churned": 309,
+            "observed_churn_pct": 42.2,
+            "ci95_pct": [
+              38.7,
+              45.8
+            ],
+            "mean_predicted_pct": 42.0
+          },
+          {
+            "group": "Documentary",
+            "n": 738,
+            "churned": 342,
+            "observed_churn_pct": 46.3,
+            "ci95_pct": [
+              42.8,
+              49.9
+            ],
+            "mean_predicted_pct": 45.4
+          },
+          {
+            "group": "Drama",
+            "n": 723,
+            "churned": 302,
+            "observed_churn_pct": 41.8,
+            "ci95_pct": [
+              38.2,
+              45.4
+            ],
+            "mean_predicted_pct": 42.3
+          },
+          {
+            "group": "Kids",
+            "n": 727,
+            "churned": 316,
+            "observed_churn_pct": 43.5,
+            "ci95_pct": [
+              39.9,
+              47.1
+            ],
+            "mean_predicted_pct": 42.9
+          },
+          {
+            "group": "Romance",
+            "n": 694,
+            "churned": 305,
+            "observed_churn_pct": 43.9,
+            "ci95_pct": [
+              40.3,
+              47.7
+            ],
+            "mean_predicted_pct": 43.4
+          },
+          {
+            "group": "Thriller",
+            "n": 708,
+            "churned": 302,
+            "observed_churn_pct": 42.7,
+            "ci95_pct": [
+              39.1,
+              46.3
+            ],
+            "mean_predicted_pct": 42.9
+          }
+        ],
+        "cramers_v": 0.033
+      },
+      "country": {
+        "rows": [
+          {
+            "group": "Canada",
+            "n": 191,
+            "churned": 82,
+            "observed_churn_pct": 42.9,
+            "ci95_pct": [
+              36.1,
+              50.0
+            ],
+            "mean_predicted_pct": 43.8
+          },
+          {
+            "group": "India",
+            "n": 3987,
+            "churned": 1725,
+            "observed_churn_pct": 43.3,
+            "ci95_pct": [
+              41.7,
+              44.8
+            ],
+            "mean_predicted_pct": 43.0
+          },
+          {
+            "group": "Singapore",
+            "n": 224,
+            "churned": 101,
+            "observed_churn_pct": 45.1,
+            "ci95_pct": [
+              38.7,
+              51.6
+            ],
+            "mean_predicted_pct": 45.0
+          },
+          {
+            "group": "UAE",
+            "n": 215,
+            "churned": 87,
+            "observed_churn_pct": 40.5,
+            "ci95_pct": [
+              34.1,
+              47.1
+            ],
+            "mean_predicted_pct": 42.1
+          },
+          {
+            "group": "UK",
+            "n": 196,
+            "churned": 78,
+            "observed_churn_pct": 39.8,
+            "ci95_pct": [
+              33.2,
+              46.8
+            ],
+            "mean_predicted_pct": 41.2
+          },
+          {
+            "group": "USA",
+            "n": 188,
+            "churned": 82,
+            "observed_churn_pct": 43.6,
+            "ci95_pct": [
+              36.7,
+              50.8
+            ],
+            "mean_predicted_pct": 44.6
+          }
+        ],
+        "cramers_v": 0.02
+      },
+      "gender": {
+        "rows": [
+          {
+            "group": "Female",
+            "n": 1657,
+            "churned": 753,
+            "observed_churn_pct": 45.4,
+            "ci95_pct": [
+              43.1,
+              47.8
+            ],
+            "mean_predicted_pct": 43.9
+          },
+          {
+            "group": "Male",
+            "n": 1661,
+            "churned": 707,
+            "observed_churn_pct": 42.6,
+            "ci95_pct": [
+              40.2,
+              45.0
+            ],
+            "mean_predicted_pct": 43.1
+          },
+          {
+            "group": "Other",
+            "n": 1683,
+            "churned": 695,
+            "observed_churn_pct": 41.3,
+            "ci95_pct": [
+              39.0,
+              43.7
+            ],
+            "mean_predicted_pct": 42.2
+          }
+        ],
+        "cramers_v": 0.035
+      },
+      "payment_method": {
+        "rows": [
+          {
+            "group": "Credit Card",
+            "n": 1172,
+            "churned": 519,
+            "observed_churn_pct": 44.3,
+            "ci95_pct": [
+              41.5,
+              47.1
+            ],
+            "mean_predicted_pct": 42.9
+          },
+          {
+            "group": "Debit Card",
+            "n": 1254,
+            "churned": 534,
+            "observed_churn_pct": 42.6,
+            "ci95_pct": [
+              39.9,
+              45.3
+            ],
+            "mean_predicted_pct": 43.4
+          },
+          {
+            "group": "UPI",
+            "n": 1270,
+            "churned": 539,
+            "observed_churn_pct": 42.4,
+            "ci95_pct": [
+              39.7,
+              45.2
+            ],
+            "mean_predicted_pct": 43.2
+          },
+          {
+            "group": "Wallet",
+            "n": 1305,
+            "churned": 563,
+            "observed_churn_pct": 43.1,
+            "ci95_pct": [
+              40.5,
+              45.8
+            ],
+            "mean_predicted_pct": 42.8
+          }
+        ],
+        "cramers_v": 0.014
+      },
+      "age_band": {
+        "rows": [
+          {
+            "group": "18-24",
+            "n": 1313,
+            "churned": 555,
+            "observed_churn_pct": 42.3,
+            "ci95_pct": [
+              39.6,
+              45.0
+            ],
+            "mean_predicted_pct": 42.8
+          },
+          {
+            "group": "25-34",
+            "n": 2377,
+            "churned": 1024,
+            "observed_churn_pct": 43.1,
+            "ci95_pct": [
+              41.1,
+              45.1
+            ],
+            "mean_predicted_pct": 42.9
+          },
+          {
+            "group": "35-44",
+            "n": 1166,
+            "churned": 518,
+            "observed_churn_pct": 44.4,
+            "ci95_pct": [
+              41.6,
+              47.3
+            ],
+            "mean_predicted_pct": 44.1
+          },
+          {
+            "group": "45+",
+            "n": 145,
+            "churned": 58,
+            "observed_churn_pct": 40.0,
+            "ci95_pct": [
+              32.4,
+              48.1
+            ],
+            "mean_predicted_pct": 40.7
+          }
+        ],
+        "cramers_v": 0.019
+      },
+      "num_profiles": {
+        "rows": [
+          {
+            "group": "1",
+            "n": 1497,
+            "churned": 609,
+            "observed_churn_pct": 40.7,
+            "ci95_pct": [
+              38.2,
+              43.2
+            ],
+            "mean_predicted_pct": 40.8
+          },
+          {
+            "group": "2",
+            "n": 1506,
+            "churned": 646,
+            "observed_churn_pct": 42.9,
+            "ci95_pct": [
+              40.4,
+              45.4
+            ],
+            "mean_predicted_pct": 42.9
+          },
+          {
+            "group": "3",
+            "n": 1044,
+            "churned": 464,
+            "observed_churn_pct": 44.4,
+            "ci95_pct": [
+              41.5,
+              47.5
+            ],
+            "mean_predicted_pct": 44.2
+          },
+          {
+            "group": "4",
+            "n": 707,
+            "churned": 324,
+            "observed_churn_pct": 45.8,
+            "ci95_pct": [
+              42.2,
+              49.5
+            ],
+            "mean_predicted_pct": 45.2
+          },
+          {
+            "group": "5",
+            "n": 247,
+            "churned": 112,
+            "observed_churn_pct": 45.3,
+            "ci95_pct": [
+              39.3,
+              51.6
+            ],
+            "mean_predicted_pct": 47.0
+          }
+        ],
+        "cramers_v": 0.037
+      }
+    },
+    "two_way_top": [
+      {
+        "segment": "watch_band=<2h & pay_fail_band=3-4 failures",
+        "n": 112,
+        "churned": 106,
+        "observed_churn_pct": 94.6,
+        "ci95_pct": [
+          88.8,
+          97.5
+        ],
+        "mean_predicted_pct": 90.4
+      },
+      {
+        "segment": "tenure_bucket=3-6m & watch_band=<2h",
+        "n": 85,
+        "churned": 73,
+        "observed_churn_pct": 85.9,
+        "ci95_pct": [
+          76.9,
+          91.7
+        ],
+        "mean_predicted_pct": 80.3
+      },
+      {
+        "segment": "tenure_bucket=0-3m & watch_band=<2h",
+        "n": 55,
+        "churned": 47,
+        "observed_churn_pct": 85.5,
+        "ci95_pct": [
+          73.8,
+          92.4
+        ],
+        "mean_predicted_pct": 89.3
+      },
+      {
+        "segment": "watch_band=2-5h & pay_fail_band=3-4 failures",
+        "n": 111,
+        "churned": 88,
+        "observed_churn_pct": 79.3,
+        "ci95_pct": [
+          70.8,
+          85.8
+        ],
+        "mean_predicted_pct": 79.3
+      },
+      {
+        "segment": "tenure_bucket=0-3m & pay_fail_band=1-2 failures",
+        "n": 53,
+        "churned": 42,
+        "observed_churn_pct": 79.2,
+        "ci95_pct": [
+          66.5,
+          88.0
+        ],
+        "mean_predicted_pct": 72.5
+      },
+      {
+        "segment": "tenure_bucket=6-12m & pay_fail_band=3-4 failures",
+        "n": 75,
+        "churned": 59,
+        "observed_churn_pct": 78.7,
+        "ci95_pct": [
+          68.1,
+          86.4
+        ],
+        "mean_predicted_pct": 79.1
+      },
+      {
+        "segment": "tenure_bucket=1-2yr & pay_fail_band=3-4 failures",
+        "n": 196,
+        "churned": 153,
+        "observed_churn_pct": 78.1,
+        "ci95_pct": [
+          71.8,
+          83.3
+        ],
+        "mean_predicted_pct": 78.2
+      },
+      {
+        "segment": "watch_band=<2h & pay_fail_band=1-2 failures",
+        "n": 278,
+        "churned": 210,
+        "observed_churn_pct": 75.5,
+        "ci95_pct": [
+          70.2,
+          80.2
+        ],
+        "mean_predicted_pct": 73.1
+      }
+    ],
+    "two_way_lowest": [
+      {
+        "segment": "watch_band=5h+ & pay_fail_band=0 failures",
+        "n": 1618,
+        "churned": 380,
+        "observed_churn_pct": 23.5,
+        "ci95_pct": [
+          21.5,
+          25.6
+        ],
+        "mean_predicted_pct": 24.2
+      },
+      {
+        "segment": "tenure_bucket=2yr+ & pay_fail_band=0 failures",
+        "n": 1165,
+        "churned": 277,
+        "observed_churn_pct": 23.8,
+        "ci95_pct": [
+          21.4,
+          26.3
+        ],
+        "mean_predicted_pct": 25.0
+      },
+      {
+        "segment": "tenure_bucket=2yr+ & watch_band=5h+",
+        "n": 1096,
+        "churned": 271,
+        "observed_churn_pct": 24.7,
+        "ci95_pct": [
+          22.3,
+          27.4
+        ],
+        "mean_predicted_pct": 25.8
+      }
+    ],
+    "min_n_for_segment": 50,
+    "overall_observed_pct": 43.1,
+    "overall_mean_predicted_pct": 43.1
+  },
+  "figures": [
+    "docs/data/figures/churn8_churn_rate_by_variable.png",
+    "docs/data/figures/churn8_distributions.png",
+    "docs/data/figures/churn9_observed_vs_predicted.png"
+  ]
+}
