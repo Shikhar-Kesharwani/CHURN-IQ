@@ -2,6 +2,38 @@
 
 **Owner:** Avanish Rajauria (E6). **Board:** CHURN board, id 3, on `avanishrajauria.atlassian.net`.
 
+> **Update, 25 November 2026 (Avanish Rajauria, AI-assisted).** This note is current. The rest of the document is the original agenda and templates from 24 Nov, kept unchanged for history. Statements there such as "no planning meeting … has taken place yet" were true when written.
+>
+> **What happened:**
+> * **Sprint 1 planning was held on 20 November 2026,** with all four members present, as confirmed by Avanish. It is recorded on CHURN-58 (Done, comments 10083–10085).
+> * **No planning meeting was held for Sprint 2 or Sprint 3.** This is recorded on CHURN-62 and CHURN-66, which were closed as not applicable on 26 Nov.
+> * **No stand-ups, sprint reviews or retrospectives were held.** No burndown chart or sprint report exists.
+>
+> **Team decisions that replaced the process below:**
+> 1. **Blank dates, never started.** Sprints 1–3 keep blank start and end dates and are never started (CHURN-58, comment 10085).
+> 2. **Task groupings.** Sprints 1–3 are task groupings, not calendar Scrum events (comments 10108–10111 on CHURN-35, 66, 67 and 68).
+>
+> **Consequences:**
+> * The §4.1–§4.5 templates were used only for Sprint 1 planning.
+> * The backlog reviews (§4.6) were done before execution for all three groupings: CHURN-61, 65 and 69, all Done.
+>
+> **Treatment of the 19 Stories completed before planning (§2):** they are in the backlog (CHURN-32, comment 10070), which is option B in practice. **The team has not yet confirmed option A or B** (CHURN-32, comment 10139).
+>
+> **§5, Definition of Done, as now applied:**
+>
+> | Story | Status (25 Nov 2026) |
+> |---|---|
+> | CHURN-32 | In Progress. Reviews for all three groupings are Done; it waits only on the option A/B confirmation |
+> | CHURN-33 | **Done.** Criteria amended to the two decisions; original wording kept in the description; evidence in comment 10138 |
+> | CHURN-36 | In Progress. Criteria amended the same way; `docs/PROJECT_PROGRESS_REPORT.md` section F is the final report, and it closes once a teammate approves and merges it |
+>
+> **Later on 25 Nov:** under the same two decisions, the shared ceremony records CHURN-35, 60, 63, 64, 67 and 68 were closed as **not applicable**.
+> * Their original Definitions of Done are kept in the descriptions, and each carries the label `not-applicable`.
+> * Closing them does not mean any review, retrospective or stand-up took place.
+> * CHURN-62 and 66 were closed the same way on 26 Nov. CHURN-59 (Shikhar's) is unchanged.
+>
+> **Current issue status** is in `docs/PROJECT_PROGRESS_REPORT.md`, section F.
+
 This document is a **planning agenda and a set of blank tracking templates**. It records the current Jira state, and gives the team a process to follow once sprints actually run.
 
 **No planning meeting, stand-up, sprint review or retrospective is recorded here.** None has taken place yet. Fill in the templates only with what really happens, on the day it happens. Prepared with AI-assisted development tools.
