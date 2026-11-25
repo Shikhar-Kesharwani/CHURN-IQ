@@ -1,10 +1,167 @@
 # CHURN-IQ — Project Progress Report
 
-> **Update note (25 November 2026).** §0 below is the **current** status. It was read from Jira, GitHub and `main` @ `074ec94` after PR #14 was merged, and was prepared by Aryan Gupta for the Sprint 3 closeout with AI-assisted development tools.
+> **Final status, 25 November 2026 (evening).** Section **F** below is current. It was read live from Jira (70 issues), GitHub (`main` @ `8161a9e`, PRs #1 to #20) and the two production URLs. Prepared by Avanish Rajauria for CHURN-36, with AI-assisted development tools.
 >
-> §1 to §14 are the **24 November snapshot** (after PR #8), kept unchanged for history. Where §0 and the snapshot disagree, §0 is current.
+> **Older sections, kept unchanged for history:**
+> * §0 is Aryan Gupta's Sprint 3 closeout update (25 Nov, after PR #14).
+> * §1 to §14 are the 24 November snapshot (after PR #8).
+>
+> Where they disagree with F, F is current.
 
-## 0. Current status (25 November 2026)
+## F. Final project status (25 November 2026)
+
+### F.1 How the sprints were used
+
+**Sprints 1–3 are task groupings, not calendar sprints.**
+
+* By team decision (CHURN-58, comment 10085), all three Jira sprints stay **Future with blank start and end dates** and have **never been started**.
+* Sprints 1–3 only divide the work (recorded on CHURN-35, 66, 67 and 68, comments 10108–10111).
+
+**What happened, and what didn't:**
+
+| Event | Status |
+|---|---|
+| Sprint 1 planning meeting | **Held on 20 November 2026**, all four members present, as confirmed by Avanish (CHURN-58, Done) |
+| Sprint 2 and Sprint 3 planning meetings | **Not held.** Recorded as such on CHURN-62 and CHURN-66, which stay To Do |
+| Stand-ups, sprint reviews, retrospectives | **None held or recorded** for any sprint |
+| Burndown charts, sprint reports | **None exist.** Jira does not produce them for a sprint that was never started |
+
+None of these records has been invented.
+
+### F.2 Jira status (all 70 issues, read live on 25 Nov 2026)
+
+| Type | Total | Done | In Progress | To Do |
+|---|---|---|---|---|
+| Epics | 6 | 3 (E3, E4, E5) | 1 (E6) | 2 (E1, E2: every child Done; the Epics themselves are not closed) |
+| Stories | 35 | 29 | 4 (CHURN-32, 36, 54, 55) | 2 (CHURN-34, 35: shared) |
+| Bugs | 17 | 16 | 1 (CHURN-70) | 0 |
+| Tasks (sprint record tasks CHURN-58 to 69) | 12 | 4 (CHURN-58, 61, 65, 69) | 0 | 8 (CHURN-59, 60, 62, 63, 64, 66, 67, 68) |
+| **Total** | **70** | **52** | **6** | **12** |
+
+* **Original plan (30 Stories, CHURN-7 to CHURN-36, 103 points):** **26 of 30 Done, 94 of 103 points (91%).**
+* **Open in the original plan:**
+  * CHURN-32 (2 points, In Progress), awaiting one team decision (F.6);
+  * CHURN-36 (3 points, In Progress), which is this report;
+  * CHURN-34 and CHURN-35 (2 points each, shared, To Do).
+* **CHURN-33** (sprint planning and tracking) was closed on 25 Nov under criteria amended to match the two documented decisions. The original wording is kept in its description, and the evidence is in comment 10138.
+
+### F.3 Results by Epic
+
+| Epic | Owner | Children | Done | Points Done | Outcome |
+|---|---|---|---|---|---|
+| E1 Customer Data & Analytics (CHURN-1) | Shimon Sarin | 6 | 6 | 21 / 21 | Data quality, behaviour, segment patterns, Segments-page validation, dashboard re-check and data dictionary (`docs/data/`, PR #17). The Epic issue itself is still To Do |
+| E2 ML & Explainability (CHURN-2) | Aryan Gupta | 11 | 11 | 29 / 29 | Pipeline review, evaluation, SHAP and CLV validation, model research; monotone-constrained model adopted (CHURN-45 and 57, PRs #12 and #14); segment validation (CHURN-56, PR #15). The Epic issue itself is still To Do |
+| E3 Backend & API (CHURN-3) | Shikhar Kesharwani | 10 | 10 | 17 / 17 | Endpoint review, response models, validation, error handling, Gemini and email hardening. **Epic Done** |
+| E4 Similarity & What-If (CHURN-4) | Shikhar Kesharwani | 4 | 4 | 11 / 11 | KNN and What-If verification, edge-case tests. **Epic Done** |
+| E5 Frontend & Dashboard (CHURN-5) | Avanish Rajauria | 12 | 12 | 22 / 22 | Dashboard, risk table, detail page, integration, UX; 6 Bugs fixed (PR #8). **Epic Done** |
+| E6 Agile & Integration (CHURN-6) | Avanish Rajauria (+ shared) | 17 | 4 + CHURN-33 | 2 / 11 | Backlog, planning and report work. The open items are the ceremony records (F.6) |
+| No Epic | — | 4 | 1 (CHURN-53) | — | CHURN-54, 55 and 70 are In Progress (PRs #19, #20, #18). Epic placement is still a team decision (CHURN-32, comment 10139) |
+
+### F.4 Results by sprint grouping (sprint field in Jira)
+
+| Grouping | Goal (Jira) | Issues | Done | In Progress | To Do | Committed points Done |
+|---|---|---|---|---|---|---|
+| Sprint 1 | Establish a reliable baseline of OTT data quality, customer behaviour, and model/test readiness. | 8 | 6 | 0 | 2 (CHURN-59, 60: records) | 13 / 13 |
+| Sprint 2 | Validate and fix | 9 | 4 | 2 (CHURN-54, 55) | 3 (CHURN-62, 63, 64: records) | 11 / 11 (CHURN-54 and 55 are unpointed) |
+| Sprint 3 | Improve, test, document | 11 | 4 (CHURN-11, 12, 33, 69) | 2 (CHURN-32, 36) | 5 (CHURN-34, 35, 66, 67, 68) | 7 / 16 |
+| Backlog (no grouping) | — | 36 | 35 | 1 (CHURN-70) | 0 | 71 / 71 |
+
+**The 19 backlog Stories.** CHURN-13 to CHURN-31 were finished on 22–24 Nov, before the groupings were set up, and were moved to the backlog on 24 Nov (CHURN-32, comment 10070). The team has not yet confirmed option A or B for them (F.6).
+
+### F.5 Team contributions (Jira assignee and GitHub account actions)
+
+| Member | Jira scope Done | Points Done | GitHub PRs authored (merged) | Main evidence |
+|---|---|---|---|---|
+| **Aryan Gupta** | CHURN-13 to 17, 45, 56, 57 (8 issues) | 27 | #1, #12, #14, #15, #16 | `docs/ml/01`–`08`; production model adoption; Sprint 3 evidence docs for CHURN-11 and 12 (`docs/analytics/`, `docs/data/DATA_DICTIONARY.md`) |
+| **Shikhar Kesharwani** | CHURN-18 to 25, Bugs CHURN-39 to 44, CHURN-46 (15 issues) | 30 | #2, #3, #4, #5, #6, #7, #13 | `docs/api/README.md`; API hardening; CI workflow (#7); Python 3.10.13 CI (#13) |
+| **Shimon Sarin** | CHURN-7 to 12 (6 issues) | 21 | #17 | `docs/data/01`–`04`, analysis scripts and figures |
+| **Avanish Rajauria** | CHURN-26 to 31, Bugs CHURN-47 to 53, CHURN-33, 58, 61, 65, 69 (18 issues) | 24 | #8, #9, #11 (merged); #10, #18, #19, #20 (open) | Frontend (E5); `docs/frontend/UI_TEST_REPORT.md`; E6 planning and backlog records; this report |
+| **Shared or unassigned** | Bugs CHURN-37, 38 (Done; fixed in Aryan's PR #1) | — | — | — |
+
+**Reviews and merges by account:**
+* PRs #12, #13 and #14 were approved by `AvanishRajauria`; #14 was merged by it.
+* PRs #15, #16 and #17 were approved and merged by `AvanishRajauria`. None of these was authored by Avanish.
+* Avanish's own PRs #8, #9 and #11 were approved and merged by `Shikhar-Kesharwani`.
+* **No PR was approved by its own author.**
+* As before, these columns record the GitHub **account** that acted. Several actions were carried out with AI-assisted tools on a member's account (see `docs/CONTRIBUTOR_ATTRIBUTION.md`).
+
+### F.6 Avanish's open implementation work: PRs awaiting independent review
+
+| PR | Jira | Implementation | Tests | CI on the PR | Review | Merge |
+|---|---|---|---|---|---|---|
+| [#18](https://github.com/Shikhar-Kesharwani/CHURN-IQ/pull/18) | CHURN-70 (Bug) | Segments page labels values as "Average Predicted Churn Probability"; tenure buckets shown as 1–3, 4–6, 7–12, 13–24 and 25+ months; numbers unchanged | 85 frontend tests; browser check | ✅ Backend tests, ✅ Frontend build | Requested from Shikhar and Aryan; **none received** | **Not merged** |
+| [#19](https://github.com/Shikhar-Kesharwani/CHURN-IQ/pull/19) | CHURN-54 | CORS restricted to the production frontend and localhost dev/preview; `CORS_ALLOWED_ORIGINS` override; no wildcard, no credentials; `docs/deployment/PRODUCTION_CONFIGURATION.md` | 582 backend tests; 30 CORS tests (11 fail if the old wildcard is restored) | ✅ ✅ | Requested; **none received** | **Not merged** |
+| [#20](https://github.com/Shikhar-Kesharwani/CHURN-IQ/pull/20) | CHURN-55 | Fixture-vs-API contract check (8 fixtures); 4 Playwright smoke tests against real uvicorn; new CI job "Browser smoke tests" | 564 backend tests; 82 frontend tests; 4/4 smoke tests | ✅ Backend tests, ✅ Frontend build, ✅ Browser smoke tests | Requested; **none received** | **Not merged** |
+
+CHURN-54, 55 and 70 are In Progress. They move to Done only after an independent approval and merge; for CHURN-54, also after deployment (F.7).
+
+**Project-management items still open:**
+
+* **CHURN-32 (backlog):**
+  * Epics, points and assignees are correct for all 30 Stories, and all three backlog reviews are Done.
+  * **Waiting on one team decision:** option A or B for the 19 pre-sprint Done Stories (comment 10139).
+* **CHURN-36 (this report):** acceptance criteria amended on 25 Nov to match the decisions. It closes when this report's PR is approved by a teammate and merged.
+* **CHURN-34 (bugs and blockers, shared):** CHURN-70 is still open, and CHURN-37, 38 and 70 have no assignee, which the first criterion requires (comment 10132).
+* **CHURN-35, 59, 60, 63, 64, 67 and 68:** records of stand-ups and reviews that **never took place**. They stay To Do and are not marked Done.
+* **CHURN-62 and CHURN-66:** planning records for meetings that **never took place** (comments 10136 and 10137). They stay To Do.
+
+### F.7 Deployment status (checked live on 25 Nov 2026)
+
+| Item | Value or status |
+|---|---|
+| Production frontend | `https://churn-iq-frontend-five.vercel.app`, serving bundle `assets/index-DK36Gx0B.js` |
+| Production API | `https://churniq-32r3.onrender.com` |
+| `VITE_API_URL` (effective) | `https://churniq-32r3.onrender.com`: the only API URL in the deployed bundle. The Vercel dashboard **setting** itself has **not** been checked; only the Vercel project owner can see it |
+| `CORS_ALLOWED_ORIGINS` | Introduced by PR #19 (not merged). The default needs no variable on Render; the Render setting has not been checked |
+| Deployed versions | **Both predate the team's merged PRs.** `GET /` reports `high_risk_count: 250`, the pre-PR-1/pre-PR-14 model. The bundle contains none of the PR #8 UI text |
+| Redeployed after the latest merges? | **No.** Neither service has been redeployed from `main` |
+| Live CORS | `Origin: https://evil.example` still receives `access-control-allow-origin: *` with `access-control-allow-credentials: true`. **The CORS fix is not live** |
+
+**Why deployment hasn't happened:**
+* No Render or Vercel access is available to this account's tooling.
+* PR #19 is not merged.
+
+The redeploy steps for the hosting account owners are in `docs/deployment/PRODUCTION_CONFIGURATION.md` §5 (on the PR #19 branch).
+
+### F.8 CI and branch protection
+
+* **CI on `main` @ `8161a9e`** (run 26, after PR #17): Backend tests ✅, Frontend build ✅.
+* **Required checks:** "Backend tests" and "Frontend build" (branch protection on `main` since 24 Nov).
+* **"Browser smoke tests" is not a required check.** PR #20 adds it as a new job. `AvanishRajauria` has **write** (not admin) access, so making it required needs the repository admin (`Shikhar-Kesharwani`).
+
+### F.9 Test results for this report (local, on `main` @ `8161a9e` plus this documentation change)
+
+| Check | Command | Result |
+|---|---|---|
+| Backend tests | `cd backend && python -m pytest -q` (Python 3.13.18) | **552 passed** |
+| Frontend tests | `cd frontend && npm test` | **82 passed** |
+| Frontend build | `cd frontend && npm run build` | passes (existing chunk-size warning only) |
+| Markdown links and repository paths in the two changed documents | script check | all resolve, except `docs/deployment/PRODUCTION_CONFIGURATION.md`, which exists only on the PR #19 branch until that PR is merged |
+
+The counts on PRs #18 to #20 are higher because those PRs add tests (F.6).
+
+### F.10 Completion summary (live data, 25 Nov 2026)
+
+| Category | Count | Issues |
+|---|---|---|
+| Implementation work completed (Stories and Bugs outside E6) | 44 of 47 | Done: all 43 issues under E1 to E5, plus CHURN-53. Open: CHURN-54, 55 and 70 (PRs awaiting review) |
+| Project-management work completed (E6, excluding ceremony records) | 5 of 8 | Done: CHURN-33, 58, 61, 65, 69. Open: CHURN-32 (team decision), CHURN-36 (this report's review), CHURN-34 (Bug ownership + CHURN-70) |
+| Awaiting independent approval | 4 PRs | #18, #19, #20 and this report's PR. PR #10 (Avanish's proposed Sprint 1 plan, "not agreed") is also still open. It is superseded by the CHURN-58 record, and closing it is the team's call |
+| Unperformed ceremony records (no event took place) | 9 | CHURN-35, 59, 60, 62, 63, 64, 66, 67, 68 |
+| External dependencies | 3 | Render/Vercel redeploy and settings check (CHURN-54); making the smoke-test check required (repository admin) |
+
+**Completion of actionable work:** 49 of 55 = **89%**.
+
+* **Denominator, 55 issues:** the 47 implementation issues and the 8 project-management issues above.
+* **Not counted:** the 6 Epics and the 9 ceremony records. Those records describe meetings that never took place, so they cannot be completed honestly. They are excluded from the denominator and reported separately, not counted as Done.
+
+**Completion across all 70 issues:** 52 of 70 = **74%**.
+
+---
+
+# Sprint 3 closeout update (25 November 2026, Aryan Gupta), historical
+
+## 0. Status as of PR #14 (25 November 2026)
 
 ### 0.1 How the sprints are used
 
