@@ -9,10 +9,11 @@ Validation of the churn model, its explanations and the CLV logic. Covers Jira S
 | CHURN-15 Validate SHAP explanations | [03-shap-validation.md](03-shap-validation.md) | `backend/validate_shap.py` | `tests/test_shap_validation.py` |
 | CHURN-16 Verify CLV calculation and tiers | [04-clv-verification.md](04-clv-verification.md) | `backend/churniq_core.py`, `backend/generate_predictions.py` | `tests/test_clv.py`, `tests/test_prediction_coverage.py` |
 | CHURN-17 Model improvement research | [05-model-improvement-research.md](05-model-improvement-research.md) | `backend/model_experiments.py` | `tests/test_model_improvement.py` |
+| CHURN-45 Monotonic constraints for What-If | [07-monotonic-constraints.md](07-monotonic-constraints.md) | `backend/monotonic_experiments.py` | `tests/test_monotonic_constraints.py` |
 
 | Follow-up audit (CHURN-16 bugs, re-verification, Git audit) | [06-followup-audit.md](06-followup-audit.md) | `backend/verify_model_improvement.py` | — |
 
-Machine-readable results are in [`results/`](results/): `evaluation_results.json`, `shap_validation.json`, `model_experiments.json`, `model_improvement_verification.json` and `prediction_coverage.json`.
+Machine-readable results are in [`results/`](results/): `evaluation_results.json`, `shap_validation.json`, `model_experiments.json`, `model_improvement_verification.json`, `prediction_coverage.json` and `monotonic_experiments.json`.
 
 ## Headline findings
 
@@ -20,6 +21,7 @@ Machine-readable results are in [`results/`](results/): `evaluation_results.json
 - **Committed model on the held-out test set:** ROC-AUC **0.717**, accuracy 0.667, precision 0.623, recall 0.578, F1 0.599. The ceiling set by the data's own label noise is about 0.794.
 - **SHAP is computed correctly** (additivity error < 3×10⁻⁶). However, 47% of the explanation weight sits on features that don't drive churn. The plain-English reason text also contradicted customers' actual values (fixed).
 - **The CLV formula is correct.** Tier assignment was inconsistent between endpoints for 156 customers (fixed). **Every customer now has a genuine prediction:** 4,000 training customers are scored out-of-fold (AUC 0.746) instead of showing 0 % / ₹0 (CHURN-37), and the demo customer is model-scored (CHURN-38).
+- **What-If direction (CHURN-45):** the served model moves risk the wrong way for about 99% of customers somewhere in the watch-hours, logins and tenure ranges. XGBoost monotone constraints remove this completely (0 customers) at no measurable AUC cost. Decision: adopt the regularised recipe with constraints (test ROC-AUC 0.760); adoption is CHURN-57. See [07-monotonic-constraints.md](07-monotonic-constraints.md).
 - **A regularised XGBoost without SMOTE improves test ROC-AUC from 0.724 to 0.758** (paired 95% CI of the gain +0.018 to +0.052). It also improves calibration and cuts noise-driven explanations from 47% to 11%. It's available as `--model-config regularised`; the production artifact is unchanged pending team sign-off.
 
 ## How to run

@@ -1,0 +1,961 @@
+{
+  "protocol": {
+    "split": "80/20 stratified, random_state=42 (same as pipeline and model_experiments.py)",
+    "selection": "5-fold stratified CV on training split only, SMOTE inside folds where used",
+    "test_usage": "one evaluation per candidate",
+    "paired_bootstrap": "1,000 resamples of the 1,000 test customers, seed 42",
+    "improvement_rule": "CV AUC gain > reference CV std AND paired 95% CI of test AUC difference > 0",
+    "whatif_population": "1000 held-out test customers",
+    "wrong_step_thresholds": {
+      "any": 1e-06,
+      "material": 0.01
+    }
+  },
+  "expected_directions": {
+    "whatif_inputs": {
+      "watch_hours_per_week": -1,
+      "logins_last_30_days": -1,
+      "tenure_months": -1,
+      "payment_failures_3m": 1,
+      "support_tickets": 1,
+      "monthly_charge": 0
+    },
+    "engineered_features": {
+      "engagement_score": -1,
+      "friction_score": 1,
+      "is_new_customer": 1
+    },
+    "source": "churniq_ml_pipeline.generate_dataset churn_score terms"
+  },
+  "monotone_constraints_vector": {
+    "age": 0,
+    "plan_type": 0,
+    "monthly_charge": 0,
+    "tenure_months": -1,
+    "watch_hours_per_week": -1,
+    "num_profiles": 0,
+    "logins_last_30_days": -1,
+    "last_login_days_ago": 0,
+    "payment_failures_3m": 1,
+    "support_tickets": 1,
+    "engagement_score": -1,
+    "friction_score": 1,
+    "inactivity_flag": 0,
+    "is_new_customer": 1,
+    "gender_Male": 0,
+    "gender_Other": 0,
+    "country_India": 0,
+    "country_Singapore": 0,
+    "country_UAE": 0,
+    "country_UK": 0,
+    "country_USA": 0,
+    "preferred_genre_Comedy": 0,
+    "preferred_genre_Documentary": 0,
+    "preferred_genre_Drama": 0,
+    "preferred_genre_Kids": 0,
+    "preferred_genre_Romance": 0,
+    "preferred_genre_Thriller": 0,
+    "device_type_Mobile": 0,
+    "device_type_Smart TV": 0,
+    "device_type_Tablet": 0,
+    "payment_method_Debit Card": 0,
+    "payment_method_UPI": 0,
+    "payment_method_Wallet": 0
+  },
+  "committed_production_artifact": {
+    "test": {
+      "threshold": 0.5,
+      "accuracy": 0.667,
+      "precision": 0.6225,
+      "recall": 0.5777,
+      "f1": 0.5993,
+      "roc_auc": 0.7167,
+      "brier": 0.2189,
+      "log_loss": 0.6364,
+      "mean_pred": 0.4509
+    }
+  },
+  "candidates": {
+    "A_baseline_smote_xgb": {
+      "cv_auc_mean": 0.7467,
+      "cv_auc_std": 0.0202,
+      "cv_brier": 0.2041,
+      "test": {
+        "threshold": 0.5,
+        "accuracy": 0.669,
+        "precision": 0.6276,
+        "recall": 0.5708,
+        "f1": 0.5978,
+        "roc_auc": 0.7239,
+        "brier": 0.2157,
+        "log_loss": 0.6279,
+        "mean_pred": 0.451
+      }
+    },
+    "A_mono_baseline_smote_xgb": {
+      "cv_auc_mean": 0.7551,
+      "cv_auc_std": 0.0184,
+      "cv_brier": 0.2023,
+      "test": {
+        "threshold": 0.5,
+        "accuracy": 0.68,
+        "precision": 0.6312,
+        "recall": 0.6195,
+        "f1": 0.6253,
+        "roc_auc": 0.727,
+        "brier": 0.2155,
+        "log_loss": 0.6346,
+        "mean_pred": 0.4512
+      }
+    },
+    "F_regularised_xgb": {
+      "cv_auc_mean": 0.7744,
+      "cv_auc_std": 0.0214,
+      "cv_brier": 0.1891,
+      "test": {
+        "threshold": 0.5,
+        "accuracy": 0.707,
+        "precision": 0.6865,
+        "recall": 0.5893,
+        "f1": 0.6342,
+        "roc_auc": 0.7581,
+        "brier": 0.1963,
+        "log_loss": 0.5761,
+        "mean_pred": 0.434
+      }
+    },
+    "F_mono_regularised_xgb": {
+      "cv_auc_mean": 0.7748,
+      "cv_auc_std": 0.0206,
+      "cv_brier": 0.1889,
+      "test": {
+        "threshold": 0.5,
+        "accuracy": 0.703,
+        "precision": 0.6791,
+        "recall": 0.5893,
+        "f1": 0.6311,
+        "roc_auc": 0.7597,
+        "brier": 0.1958,
+        "log_loss": 0.5747,
+        "mean_pred": 0.4345
+      }
+    }
+  },
+  "comparisons": {
+    "A_mono vs A (constraints on production recipe)": {
+      "test_auc_diff_95ci": [
+        -0.0122,
+        0.0183
+      ],
+      "test_auc_diff_point": 0.0031,
+      "cv_auc_gain": 0.0084,
+      "meets_improvement_rule": false,
+      "no_worse_than_reference": true
+    },
+    "F_mono vs F (constraints on CHURN-17 regularised recipe)": {
+      "test_auc_diff_95ci": [
+        -0.0021,
+        0.0054
+      ],
+      "test_auc_diff_point": 0.0016,
+      "cv_auc_gain": 0.0004,
+      "meets_improvement_rule": false,
+      "no_worse_than_reference": true
+    },
+    "F_mono vs A (constrained regularised vs production recipe)": {
+      "test_auc_diff_95ci": [
+        0.0192,
+        0.0539
+      ],
+      "test_auc_diff_point": 0.0358,
+      "cv_auc_gain": 0.0281,
+      "meets_improvement_rule": true,
+      "no_worse_than_reference": true
+    },
+    "F vs A (CHURN-17 result, re-measured)": {
+      "test_auc_diff_95ci": [
+        0.0176,
+        0.0519
+      ],
+      "test_auc_diff_point": 0.0342,
+      "cv_auc_gain": 0.0277,
+      "meets_improvement_rule": true,
+      "no_worse_than_reference": true
+    },
+    "F_mono vs committed artifact": {
+      "test_auc_diff_95ci": [
+        0.0265,
+        0.0587
+      ],
+      "test_auc_diff_point": null
+    },
+    "A_mono vs committed artifact": {
+      "test_auc_diff_95ci": [
+        -0.0041,
+        0.0245
+      ],
+      "test_auc_diff_point": null
+    }
+  },
+  "robustness_10_splits": {
+    "splits": [
+      {
+        "split_seed": 1,
+        "F_auc": 0.7758,
+        "F_mono_auc": 0.7732,
+        "diff": -0.0026
+      },
+      {
+        "split_seed": 2,
+        "F_auc": 0.7787,
+        "F_mono_auc": 0.779,
+        "diff": 0.0003
+      },
+      {
+        "split_seed": 3,
+        "F_auc": 0.753,
+        "F_mono_auc": 0.7515,
+        "diff": -0.0015
+      },
+      {
+        "split_seed": 4,
+        "F_auc": 0.7493,
+        "F_mono_auc": 0.7546,
+        "diff": 0.0052
+      },
+      {
+        "split_seed": 5,
+        "F_auc": 0.7764,
+        "F_mono_auc": 0.774,
+        "diff": -0.0024
+      },
+      {
+        "split_seed": 6,
+        "F_auc": 0.7515,
+        "F_mono_auc": 0.7534,
+        "diff": 0.0019
+      },
+      {
+        "split_seed": 7,
+        "F_auc": 0.7876,
+        "F_mono_auc": 0.7841,
+        "diff": -0.0035
+      },
+      {
+        "split_seed": 8,
+        "F_auc": 0.8057,
+        "F_mono_auc": 0.8037,
+        "diff": -0.002
+      },
+      {
+        "split_seed": 9,
+        "F_auc": 0.7581,
+        "F_mono_auc": 0.758,
+        "diff": -0.0001
+      },
+      {
+        "split_seed": 10,
+        "F_auc": 0.7639,
+        "F_mono_auc": 0.7623,
+        "diff": -0.0016
+      }
+    ],
+    "mean_diff_F_mono_minus_F": -0.0006,
+    "sd_diff": 0.0026,
+    "min_diff": -0.0035,
+    "max_diff": 0.0052,
+    "F_mono_better_or_equal_on": 3
+  },
+  "whatif_behaviour": {
+    "committed_production_artifact": {
+      "point_changes": {
+        "watch_hours_per_week -> 40": {
+          "n_customers_changed": 993,
+          "mean_delta": -0.0713,
+          "share_up": 0.4068,
+          "share_down": 0.5921
+        },
+        "watch_hours_per_week -> 0.5": {
+          "n_customers_changed": 940,
+          "mean_delta": 0.3052,
+          "share_up": 0.9191,
+          "share_down": 0.0798
+        },
+        "logins_last_30_days -> 26": {
+          "n_customers_changed": 1000,
+          "mean_delta": -0.0527,
+          "share_up": 0.342,
+          "share_down": 0.658
+        },
+        "tenure_months -> 72": {
+          "n_customers_changed": 982,
+          "mean_delta": -0.0476,
+          "share_up": 0.3839,
+          "share_down": 0.6161
+        },
+        "tenure_months -> 1": {
+          "n_customers_changed": 987,
+          "mean_delta": 0.3755,
+          "share_up": 0.9787,
+          "share_down": 0.0182
+        },
+        "payment_failures_3m -> 4": {
+          "n_customers_changed": 971,
+          "mean_delta": 0.3495,
+          "share_up": 0.9712,
+          "share_down": 0.0288
+        },
+        "payment_failures_3m -> 0": {
+          "n_customers_changed": 392,
+          "mean_delta": -0.2095,
+          "share_up": 0.0357,
+          "share_down": 0.9643
+        },
+        "support_tickets -> 5": {
+          "n_customers_changed": 983,
+          "mean_delta": 0.3437,
+          "share_up": 0.9939,
+          "share_down": 0.0061
+        }
+      },
+      "grid_sweeps": {
+        "watch_hours_per_week": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            0.5,
+            1,
+            2,
+            3,
+            5,
+            8,
+            12,
+            20,
+            30,
+            40
+          ],
+          "share_customers_with_any_wrong_step": 0.994,
+          "share_customers_with_wrong_step_over_1pp": 0.986,
+          "largest_wrong_step": 0.5735
+        },
+        "logins_last_30_days": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            8,
+            12,
+            16,
+            20,
+            26,
+            30
+          ],
+          "share_customers_with_any_wrong_step": 0.991,
+          "share_customers_with_wrong_step_over_1pp": 0.959,
+          "largest_wrong_step": 0.414
+        },
+        "tenure_months": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            1,
+            2,
+            3,
+            4,
+            6,
+            9,
+            12,
+            18,
+            24,
+            36,
+            48,
+            72
+          ],
+          "share_customers_with_any_wrong_step": 0.996,
+          "share_customers_with_wrong_step_over_1pp": 0.978,
+          "largest_wrong_step": 0.3951
+        },
+        "payment_failures_3m": {
+          "expected_direction": "risk rises as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "share_customers_with_any_wrong_step": 0.372,
+          "share_customers_with_wrong_step_over_1pp": 0.235,
+          "largest_wrong_step": 0.1326
+        },
+        "support_tickets": {
+          "expected_direction": "risk rises as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "share_customers_with_any_wrong_step": 0.414,
+          "share_customers_with_wrong_step_over_1pp": 0.306,
+          "largest_wrong_step": 0.1887
+        }
+      }
+    },
+    "A_baseline_smote_xgb": {
+      "point_changes": {
+        "watch_hours_per_week -> 40": {
+          "n_customers_changed": 993,
+          "mean_delta": -0.0821,
+          "share_up": 0.3797,
+          "share_down": 0.6203
+        },
+        "watch_hours_per_week -> 0.5": {
+          "n_customers_changed": 940,
+          "mean_delta": 0.3054,
+          "share_up": 0.9277,
+          "share_down": 0.0723
+        },
+        "logins_last_30_days -> 26": {
+          "n_customers_changed": 1000,
+          "mean_delta": -0.0667,
+          "share_up": 0.291,
+          "share_down": 0.709
+        },
+        "tenure_months -> 72": {
+          "n_customers_changed": 982,
+          "mean_delta": -0.0667,
+          "share_up": 0.335,
+          "share_down": 0.665
+        },
+        "tenure_months -> 1": {
+          "n_customers_changed": 987,
+          "mean_delta": 0.3627,
+          "share_up": 0.9818,
+          "share_down": 0.0182
+        },
+        "payment_failures_3m -> 4": {
+          "n_customers_changed": 971,
+          "mean_delta": 0.3765,
+          "share_up": 0.9856,
+          "share_down": 0.0144
+        },
+        "payment_failures_3m -> 0": {
+          "n_customers_changed": 392,
+          "mean_delta": -0.2105,
+          "share_up": 0.0281,
+          "share_down": 0.9719
+        },
+        "support_tickets -> 5": {
+          "n_customers_changed": 983,
+          "mean_delta": 0.3578,
+          "share_up": 0.9939,
+          "share_down": 0.0061
+        }
+      },
+      "grid_sweeps": {
+        "watch_hours_per_week": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            0.5,
+            1,
+            2,
+            3,
+            5,
+            8,
+            12,
+            20,
+            30,
+            40
+          ],
+          "share_customers_with_any_wrong_step": 0.988,
+          "share_customers_with_wrong_step_over_1pp": 0.968,
+          "largest_wrong_step": 0.4255
+        },
+        "logins_last_30_days": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            8,
+            12,
+            16,
+            20,
+            26,
+            30
+          ],
+          "share_customers_with_any_wrong_step": 0.995,
+          "share_customers_with_wrong_step_over_1pp": 0.966,
+          "largest_wrong_step": 0.3566
+        },
+        "tenure_months": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            1,
+            2,
+            3,
+            4,
+            6,
+            9,
+            12,
+            18,
+            24,
+            36,
+            48,
+            72
+          ],
+          "share_customers_with_any_wrong_step": 0.998,
+          "share_customers_with_wrong_step_over_1pp": 0.985,
+          "largest_wrong_step": 0.2863
+        },
+        "payment_failures_3m": {
+          "expected_direction": "risk rises as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "share_customers_with_any_wrong_step": 0.232,
+          "share_customers_with_wrong_step_over_1pp": 0.156,
+          "largest_wrong_step": 0.1284
+        },
+        "support_tickets": {
+          "expected_direction": "risk rises as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "share_customers_with_any_wrong_step": 0.427,
+          "share_customers_with_wrong_step_over_1pp": 0.32,
+          "largest_wrong_step": 0.1739
+        }
+      }
+    },
+    "A_mono_baseline_smote_xgb": {
+      "point_changes": {
+        "watch_hours_per_week -> 40": {
+          "n_customers_changed": 993,
+          "mean_delta": -0.1732,
+          "share_up": 0.0,
+          "share_down": 0.9577
+        },
+        "watch_hours_per_week -> 0.5": {
+          "n_customers_changed": 940,
+          "mean_delta": 0.3357,
+          "share_up": 0.983,
+          "share_down": 0.0
+        },
+        "logins_last_30_days -> 26": {
+          "n_customers_changed": 1000,
+          "mean_delta": -0.1057,
+          "share_up": 0.0,
+          "share_down": 0.983
+        },
+        "tenure_months -> 72": {
+          "n_customers_changed": 982,
+          "mean_delta": -0.1574,
+          "share_up": 0.0,
+          "share_down": 0.9796
+        },
+        "tenure_months -> 1": {
+          "n_customers_changed": 987,
+          "mean_delta": 0.3879,
+          "share_up": 0.9848,
+          "share_down": 0.0
+        },
+        "payment_failures_3m -> 4": {
+          "n_customers_changed": 971,
+          "mean_delta": 0.3811,
+          "share_up": 0.9959,
+          "share_down": 0.0
+        },
+        "payment_failures_3m -> 0": {
+          "n_customers_changed": 392,
+          "mean_delta": -0.2188,
+          "share_up": 0.0,
+          "share_down": 1.0
+        },
+        "support_tickets -> 5": {
+          "n_customers_changed": 983,
+          "mean_delta": 0.372,
+          "share_up": 1.0,
+          "share_down": 0.0
+        }
+      },
+      "grid_sweeps": {
+        "watch_hours_per_week": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            0.5,
+            1,
+            2,
+            3,
+            5,
+            8,
+            12,
+            20,
+            30,
+            40
+          ],
+          "share_customers_with_any_wrong_step": 0.0,
+          "share_customers_with_wrong_step_over_1pp": 0.0,
+          "largest_wrong_step": 0.0
+        },
+        "logins_last_30_days": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            8,
+            12,
+            16,
+            20,
+            26,
+            30
+          ],
+          "share_customers_with_any_wrong_step": 0.0,
+          "share_customers_with_wrong_step_over_1pp": 0.0,
+          "largest_wrong_step": 0.0
+        },
+        "tenure_months": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            1,
+            2,
+            3,
+            4,
+            6,
+            9,
+            12,
+            18,
+            24,
+            36,
+            48,
+            72
+          ],
+          "share_customers_with_any_wrong_step": 0.0,
+          "share_customers_with_wrong_step_over_1pp": 0.0,
+          "largest_wrong_step": 0.0
+        },
+        "payment_failures_3m": {
+          "expected_direction": "risk rises as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "share_customers_with_any_wrong_step": 0.0,
+          "share_customers_with_wrong_step_over_1pp": 0.0,
+          "largest_wrong_step": 0.0
+        },
+        "support_tickets": {
+          "expected_direction": "risk rises as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "share_customers_with_any_wrong_step": 0.0,
+          "share_customers_with_wrong_step_over_1pp": 0.0,
+          "largest_wrong_step": 0.0
+        }
+      }
+    },
+    "F_regularised_xgb": {
+      "point_changes": {
+        "watch_hours_per_week -> 40": {
+          "n_customers_changed": 993,
+          "mean_delta": -0.0783,
+          "share_up": 0.3837,
+          "share_down": 0.6073
+        },
+        "watch_hours_per_week -> 0.5": {
+          "n_customers_changed": 940,
+          "mean_delta": 0.3113,
+          "share_up": 0.9649,
+          "share_down": 0.0319
+        },
+        "logins_last_30_days -> 26": {
+          "n_customers_changed": 1000,
+          "mean_delta": -0.018,
+          "share_up": 0.315,
+          "share_down": 0.682
+        },
+        "tenure_months -> 72": {
+          "n_customers_changed": 982,
+          "mean_delta": -0.0828,
+          "share_up": 0.277,
+          "share_down": 0.7169
+        },
+        "tenure_months -> 1": {
+          "n_customers_changed": 987,
+          "mean_delta": 0.327,
+          "share_up": 0.9848,
+          "share_down": 0.0
+        },
+        "payment_failures_3m -> 4": {
+          "n_customers_changed": 971,
+          "mean_delta": 0.3679,
+          "share_up": 0.9979,
+          "share_down": 0.0
+        },
+        "payment_failures_3m -> 0": {
+          "n_customers_changed": 392,
+          "mean_delta": -0.2023,
+          "share_up": 0.0051,
+          "share_down": 0.9949
+        },
+        "support_tickets -> 5": {
+          "n_customers_changed": 983,
+          "mean_delta": 0.3361,
+          "share_up": 1.0,
+          "share_down": 0.0
+        }
+      },
+      "grid_sweeps": {
+        "watch_hours_per_week": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            0.5,
+            1,
+            2,
+            3,
+            5,
+            8,
+            12,
+            20,
+            30,
+            40
+          ],
+          "share_customers_with_any_wrong_step": 0.999,
+          "share_customers_with_wrong_step_over_1pp": 0.594,
+          "largest_wrong_step": 0.1784
+        },
+        "logins_last_30_days": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            8,
+            12,
+            16,
+            20,
+            26,
+            30
+          ],
+          "share_customers_with_any_wrong_step": 1.0,
+          "share_customers_with_wrong_step_over_1pp": 0.913,
+          "largest_wrong_step": 0.2262
+        },
+        "tenure_months": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            1,
+            2,
+            3,
+            4,
+            6,
+            9,
+            12,
+            18,
+            24,
+            36,
+            48,
+            72
+          ],
+          "share_customers_with_any_wrong_step": 0.982,
+          "share_customers_with_wrong_step_over_1pp": 0.566,
+          "largest_wrong_step": 0.0446
+        },
+        "payment_failures_3m": {
+          "expected_direction": "risk rises as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "share_customers_with_any_wrong_step": 0.009,
+          "share_customers_with_wrong_step_over_1pp": 0.001,
+          "largest_wrong_step": 0.0103
+        },
+        "support_tickets": {
+          "expected_direction": "risk rises as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "share_customers_with_any_wrong_step": 0.044,
+          "share_customers_with_wrong_step_over_1pp": 0.023,
+          "largest_wrong_step": 0.033
+        }
+      }
+    },
+    "F_mono_regularised_xgb": {
+      "point_changes": {
+        "watch_hours_per_week -> 40": {
+          "n_customers_changed": 993,
+          "mean_delta": -0.1134,
+          "share_up": 0.0,
+          "share_down": 0.9174
+        },
+        "watch_hours_per_week -> 0.5": {
+          "n_customers_changed": 940,
+          "mean_delta": 0.3107,
+          "share_up": 0.9872,
+          "share_down": 0.0
+        },
+        "logins_last_30_days -> 26": {
+          "n_customers_changed": 1000,
+          "mean_delta": -0.036,
+          "share_up": 0.0,
+          "share_down": 0.985
+        },
+        "tenure_months -> 72": {
+          "n_customers_changed": 982,
+          "mean_delta": -0.0961,
+          "share_up": 0.0,
+          "share_down": 0.832
+        },
+        "tenure_months -> 1": {
+          "n_customers_changed": 987,
+          "mean_delta": 0.3284,
+          "share_up": 0.9848,
+          "share_down": 0.0
+        },
+        "payment_failures_3m -> 4": {
+          "n_customers_changed": 971,
+          "mean_delta": 0.3725,
+          "share_up": 1.0,
+          "share_down": 0.0
+        },
+        "payment_failures_3m -> 0": {
+          "n_customers_changed": 392,
+          "mean_delta": -0.2067,
+          "share_up": 0.0,
+          "share_down": 1.0
+        },
+        "support_tickets -> 5": {
+          "n_customers_changed": 983,
+          "mean_delta": 0.3447,
+          "share_up": 1.0,
+          "share_down": 0.0
+        }
+      },
+      "grid_sweeps": {
+        "watch_hours_per_week": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            0.5,
+            1,
+            2,
+            3,
+            5,
+            8,
+            12,
+            20,
+            30,
+            40
+          ],
+          "share_customers_with_any_wrong_step": 0.0,
+          "share_customers_with_wrong_step_over_1pp": 0.0,
+          "largest_wrong_step": 0.0
+        },
+        "logins_last_30_days": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            8,
+            12,
+            16,
+            20,
+            26,
+            30
+          ],
+          "share_customers_with_any_wrong_step": 0.0,
+          "share_customers_with_wrong_step_over_1pp": 0.0,
+          "largest_wrong_step": 0.0
+        },
+        "tenure_months": {
+          "expected_direction": "risk falls as value rises",
+          "grid": [
+            1,
+            2,
+            3,
+            4,
+            6,
+            9,
+            12,
+            18,
+            24,
+            36,
+            48,
+            72
+          ],
+          "share_customers_with_any_wrong_step": 0.0,
+          "share_customers_with_wrong_step_over_1pp": 0.0,
+          "largest_wrong_step": 0.0
+        },
+        "payment_failures_3m": {
+          "expected_direction": "risk rises as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "share_customers_with_any_wrong_step": 0.0,
+          "share_customers_with_wrong_step_over_1pp": 0.0,
+          "largest_wrong_step": 0.0
+        },
+        "support_tickets": {
+          "expected_direction": "risk rises as value rises",
+          "grid": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "share_customers_with_any_wrong_step": 0.0,
+          "share_customers_with_wrong_step_over_1pp": 0.0,
+          "largest_wrong_step": 0.0
+        }
+      }
+    }
+  }
+}
