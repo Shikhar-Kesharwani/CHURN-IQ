@@ -1,0 +1,710 @@
+{
+  "artifact": {
+    "file": "backend/churniq_model.pkl (committed, not retrained)",
+    "model_config": "regularised_monotonic",
+    "seed": 42
+  },
+  "data": {
+    "population": "held-out test split only (never seen in training)",
+    "split": "80/20 stratified, random_state=42 (evaluate_model.rebuild_split)",
+    "customers": 1000,
+    "churned": 431,
+    "retained": 569
+  },
+  "sanity_checks": {
+    "split_matches_holdout_test_rows_in_customer_predictions_csv": true,
+    "max_abs_diff_vs_stored_churn_prob": 5e-05,
+    "overall_metrics_match_model_metadata": true,
+    "feature_set_excludes_leakage_and_identifier_columns": true
+  },
+  "settings": {
+    "threshold": 0.5,
+    "risk_tiers": {
+      "LOW": "< 0.4",
+      "MEDIUM": ">= 0.4 and < 0.7",
+      "HIGH": ">= 0.7",
+      "source": "churniq_core.RISK_MEDIUM / RISK_HIGH"
+    },
+    "tenure_bands_months": [
+      {
+        "label": "0-5 months",
+        "min": 0,
+        "max": 5
+      },
+      {
+        "label": "6-24 months",
+        "min": 6,
+        "max": 24
+      },
+      {
+        "label": "25+ months",
+        "min": 25,
+        "max": null
+      }
+    ],
+    "min_group_size": 100,
+    "min_class_count": 30,
+    "bootstrap": {
+      "resamples": 1000,
+      "seed": 42,
+      "interval": "percentile 95%"
+    },
+    "status": "PROVISIONAL: tenure bands and reliability minimums are not team-approved",
+    "weak_segment_rule": "bootstrap 95% CI of segment ROC-AUC entirely below the overall ROC-AUC",
+    "miscalibration_rule": "bootstrap 95% CI of (mean predicted \u2212 actual churn rate) excludes 0"
+  },
+  "overall": {
+    "customers": 1000,
+    "retained": 569,
+    "churned": 431,
+    "actual_churn_rate": 0.431,
+    "mean_predicted_probability": 0.4345,
+    "calibration_gap": 0.0035,
+    "roc_auc": 0.7597,
+    "accuracy": 0.703,
+    "precision": 0.6791,
+    "recall": 0.5893,
+    "f1": 0.6311,
+    "predicted_churners": 374,
+    "not_calculable": {},
+    "reliability": {
+      "sufficient": true,
+      "reasons": []
+    },
+    "risk_tiers": {
+      "LOW": {
+        "customers": 521,
+        "share": 0.521,
+        "actual_churn_rate": 0.2457,
+        "mean_predicted": 0.2439
+      },
+      "MEDIUM": {
+        "customers": 309,
+        "share": 0.309,
+        "actual_churn_rate": 0.5469,
+        "mean_predicted": 0.5503
+      },
+      "HIGH": {
+        "customers": 170,
+        "share": 0.17,
+        "actual_churn_rate": 0.7882,
+        "mean_predicted": 0.8083
+      }
+    },
+    "roc_auc_95ci": [
+      0.7277,
+      0.7908
+    ],
+    "calibration_gap_95ci": [
+      -0.0248,
+      0.0296
+    ]
+  },
+  "segments": {
+    "plan_type": {
+      "Basic": {
+        "customers": 450,
+        "retained": 252,
+        "churned": 198,
+        "actual_churn_rate": 0.44,
+        "mean_predicted_probability": 0.4382,
+        "calibration_gap": -0.0018,
+        "roc_auc": 0.7734,
+        "accuracy": 0.7022,
+        "precision": 0.686,
+        "recall": 0.596,
+        "f1": 0.6378,
+        "predicted_churners": 172,
+        "not_calculable": {},
+        "reliability": {
+          "sufficient": true,
+          "reasons": []
+        },
+        "risk_tiers": {
+          "LOW": {
+            "customers": 233,
+            "share": 0.5178,
+            "actual_churn_rate": 0.2532,
+            "mean_predicted": 0.2442
+          },
+          "MEDIUM": {
+            "customers": 134,
+            "share": 0.2978,
+            "actual_churn_rate": 0.5224,
+            "mean_predicted": 0.5488
+          },
+          "HIGH": {
+            "customers": 83,
+            "share": 0.1844,
+            "actual_churn_rate": 0.8313,
+            "mean_predicted": 0.8042
+          }
+        },
+        "roc_auc_95ci": [
+          0.7326,
+          0.8159
+        ],
+        "calibration_gap_95ci": [
+          -0.0436,
+          0.0395
+        ],
+        "comparison": {
+          "difference_vs_baseline": {
+            "roc_auc": 0.0137,
+            "accuracy": -0.0008,
+            "precision": 0.0069,
+            "recall": 0.0067,
+            "f1": 0.0067
+          },
+          "roc_auc_clearly_below_baseline": false,
+          "roc_auc_clearly_above_baseline": false,
+          "miscalibrated": false
+        }
+      },
+      "Standard": {
+        "customers": 343,
+        "retained": 190,
+        "churned": 153,
+        "actual_churn_rate": 0.4461,
+        "mean_predicted_probability": 0.4461,
+        "calibration_gap": 0.0,
+        "roc_auc": 0.7375,
+        "accuracy": 0.6939,
+        "precision": 0.6765,
+        "recall": 0.6013,
+        "f1": 0.6367,
+        "predicted_churners": 136,
+        "not_calculable": {},
+        "reliability": {
+          "sufficient": true,
+          "reasons": []
+        },
+        "risk_tiers": {
+          "LOW": {
+            "customers": 169,
+            "share": 0.4927,
+            "actual_churn_rate": 0.2604,
+            "mean_predicted": 0.2437
+          },
+          "MEDIUM": {
+            "customers": 116,
+            "share": 0.3382,
+            "actual_churn_rate": 0.569,
+            "mean_predicted": 0.5553
+          },
+          "HIGH": {
+            "customers": 58,
+            "share": 0.1691,
+            "actual_churn_rate": 0.7414,
+            "mean_predicted": 0.8176
+          }
+        },
+        "roc_auc_95ci": [
+          0.6802,
+          0.7866
+        ],
+        "calibration_gap_95ci": [
+          -0.0484,
+          0.0496
+        ],
+        "comparison": {
+          "difference_vs_baseline": {
+            "roc_auc": -0.0222,
+            "accuracy": -0.0091,
+            "precision": -0.0026,
+            "recall": 0.012,
+            "f1": 0.0056
+          },
+          "roc_auc_clearly_below_baseline": false,
+          "roc_auc_clearly_above_baseline": false,
+          "miscalibrated": false
+        }
+      },
+      "Premium": {
+        "customers": 207,
+        "retained": 127,
+        "churned": 80,
+        "actual_churn_rate": 0.3865,
+        "mean_predicted_probability": 0.4074,
+        "calibration_gap": 0.0209,
+        "roc_auc": 0.7633,
+        "accuracy": 0.7198,
+        "precision": 0.6667,
+        "recall": 0.55,
+        "f1": 0.6027,
+        "predicted_churners": 66,
+        "not_calculable": {},
+        "reliability": {
+          "sufficient": true,
+          "reasons": []
+        },
+        "risk_tiers": {
+          "LOW": {
+            "customers": 119,
+            "share": 0.5749,
+            "actual_churn_rate": 0.2101,
+            "mean_predicted": 0.2438
+          },
+          "MEDIUM": {
+            "customers": 59,
+            "share": 0.285,
+            "actual_churn_rate": 0.5593,
+            "mean_predicted": 0.5437
+          },
+          "HIGH": {
+            "customers": 29,
+            "share": 0.1401,
+            "actual_churn_rate": 0.7586,
+            "mean_predicted": 0.8015
+          }
+        },
+        "roc_auc_95ci": [
+          0.6903,
+          0.8322
+        ],
+        "calibration_gap_95ci": [
+          -0.0381,
+          0.0824
+        ],
+        "comparison": {
+          "difference_vs_baseline": {
+            "roc_auc": 0.0036,
+            "accuracy": 0.0168,
+            "precision": -0.0124,
+            "recall": -0.0393,
+            "f1": -0.0284
+          },
+          "roc_auc_clearly_below_baseline": false,
+          "roc_auc_clearly_above_baseline": false,
+          "miscalibrated": false
+        }
+      }
+    },
+    "device_type": {
+      "Laptop": {
+        "customers": 250,
+        "retained": 148,
+        "churned": 102,
+        "actual_churn_rate": 0.408,
+        "mean_predicted_probability": 0.4216,
+        "calibration_gap": 0.0136,
+        "roc_auc": 0.7782,
+        "accuracy": 0.724,
+        "precision": 0.6813,
+        "recall": 0.6078,
+        "f1": 0.6425,
+        "predicted_churners": 91,
+        "not_calculable": {},
+        "reliability": {
+          "sufficient": true,
+          "reasons": []
+        },
+        "risk_tiers": {
+          "LOW": {
+            "customers": 135,
+            "share": 0.54,
+            "actual_churn_rate": 0.2074,
+            "mean_predicted": 0.2384
+          },
+          "MEDIUM": {
+            "customers": 76,
+            "share": 0.304,
+            "actual_churn_rate": 0.5789,
+            "mean_predicted": 0.5477
+          },
+          "HIGH": {
+            "customers": 39,
+            "share": 0.156,
+            "actual_churn_rate": 0.7692,
+            "mean_predicted": 0.8103
+          }
+        },
+        "roc_auc_95ci": [
+          0.715,
+          0.8342
+        ],
+        "calibration_gap_95ci": [
+          -0.04,
+          0.067
+        ],
+        "comparison": {
+          "difference_vs_baseline": {
+            "roc_auc": 0.0185,
+            "accuracy": 0.021,
+            "precision": 0.0022,
+            "recall": 0.0185,
+            "f1": 0.0114
+          },
+          "roc_auc_clearly_below_baseline": false,
+          "roc_auc_clearly_above_baseline": false,
+          "miscalibrated": false
+        }
+      },
+      "Mobile": {
+        "customers": 265,
+        "retained": 135,
+        "churned": 130,
+        "actual_churn_rate": 0.4906,
+        "mean_predicted_probability": 0.4522,
+        "calibration_gap": -0.0383,
+        "roc_auc": 0.7767,
+        "accuracy": 0.7132,
+        "precision": 0.75,
+        "recall": 0.6231,
+        "f1": 0.6807,
+        "predicted_churners": 108,
+        "not_calculable": {},
+        "reliability": {
+          "sufficient": true,
+          "reasons": []
+        },
+        "risk_tiers": {
+          "LOW": {
+            "customers": 132,
+            "share": 0.4981,
+            "actual_churn_rate": 0.2879,
+            "mean_predicted": 0.2478
+          },
+          "MEDIUM": {
+            "customers": 84,
+            "share": 0.317,
+            "actual_churn_rate": 0.5952,
+            "mean_predicted": 0.5609
+          },
+          "HIGH": {
+            "customers": 49,
+            "share": 0.1849,
+            "actual_churn_rate": 0.8571,
+            "mean_predicted": 0.8168
+          }
+        },
+        "roc_auc_95ci": [
+          0.7162,
+          0.827
+        ],
+        "calibration_gap_95ci": [
+          -0.089,
+          0.0126
+        ],
+        "comparison": {
+          "difference_vs_baseline": {
+            "roc_auc": 0.017,
+            "accuracy": 0.0102,
+            "precision": 0.0709,
+            "recall": 0.0338,
+            "f1": 0.0496
+          },
+          "roc_auc_clearly_below_baseline": false,
+          "roc_auc_clearly_above_baseline": false,
+          "miscalibrated": false
+        }
+      },
+      "Smart TV": {
+        "customers": 239,
+        "retained": 137,
+        "churned": 102,
+        "actual_churn_rate": 0.4268,
+        "mean_predicted_probability": 0.4445,
+        "calibration_gap": 0.0177,
+        "roc_auc": 0.7083,
+        "accuracy": 0.6569,
+        "precision": 0.6087,
+        "recall": 0.549,
+        "f1": 0.5773,
+        "predicted_churners": 92,
+        "not_calculable": {},
+        "reliability": {
+          "sufficient": true,
+          "reasons": []
+        },
+        "risk_tiers": {
+          "LOW": {
+            "customers": 115,
+            "share": 0.4812,
+            "actual_churn_rate": 0.2609,
+            "mean_predicted": 0.2449
+          },
+          "MEDIUM": {
+            "customers": 83,
+            "share": 0.3473,
+            "actual_churn_rate": 0.494,
+            "mean_predicted": 0.5438
+          },
+          "HIGH": {
+            "customers": 41,
+            "share": 0.1715,
+            "actual_churn_rate": 0.7561,
+            "mean_predicted": 0.8035
+          }
+        },
+        "roc_auc_95ci": [
+          0.643,
+          0.7729
+        ],
+        "calibration_gap_95ci": [
+          -0.0405,
+          0.0749
+        ],
+        "comparison": {
+          "difference_vs_baseline": {
+            "roc_auc": -0.0514,
+            "accuracy": -0.0461,
+            "precision": -0.0704,
+            "recall": -0.0403,
+            "f1": -0.0538
+          },
+          "roc_auc_clearly_below_baseline": false,
+          "roc_auc_clearly_above_baseline": false,
+          "miscalibrated": false
+        }
+      },
+      "Tablet": {
+        "customers": 246,
+        "retained": 149,
+        "churned": 97,
+        "actual_churn_rate": 0.3943,
+        "mean_predicted_probability": 0.4188,
+        "calibration_gap": 0.0245,
+        "roc_auc": 0.7672,
+        "accuracy": 0.7154,
+        "precision": 0.6627,
+        "recall": 0.567,
+        "f1": 0.6111,
+        "predicted_churners": 83,
+        "not_calculable": {},
+        "reliability": {
+          "sufficient": true,
+          "reasons": []
+        },
+        "risk_tiers": {
+          "LOW": {
+            "customers": 139,
+            "share": 0.565,
+            "actual_churn_rate": 0.2302,
+            "mean_predicted": 0.2448
+          },
+          "MEDIUM": {
+            "customers": 66,
+            "share": 0.2683,
+            "actual_churn_rate": 0.5152,
+            "mean_predicted": 0.5478
+          },
+          "HIGH": {
+            "customers": 41,
+            "share": 0.1667,
+            "actual_churn_rate": 0.7561,
+            "mean_predicted": 0.8011
+          }
+        },
+        "roc_auc_95ci": [
+          0.7011,
+          0.8238
+        ],
+        "calibration_gap_95ci": [
+          -0.0304,
+          0.0781
+        ],
+        "comparison": {
+          "difference_vs_baseline": {
+            "roc_auc": 0.0075,
+            "accuracy": 0.0124,
+            "precision": -0.0164,
+            "recall": -0.0223,
+            "f1": -0.02
+          },
+          "roc_auc_clearly_below_baseline": false,
+          "roc_auc_clearly_above_baseline": false,
+          "miscalibrated": false
+        }
+      }
+    },
+    "tenure_band": {
+      "0-5 months": {
+        "customers": 88,
+        "retained": 30,
+        "churned": 58,
+        "actual_churn_rate": 0.6591,
+        "mean_predicted_probability": 0.6164,
+        "calibration_gap": -0.0427,
+        "roc_auc": 0.7362,
+        "accuracy": 0.6932,
+        "precision": 0.7719,
+        "recall": 0.7586,
+        "f1": 0.7652,
+        "predicted_churners": 57,
+        "not_calculable": {},
+        "reliability": {
+          "sufficient": false,
+          "reasons": [
+            "fewer than 100 customers (88)"
+          ]
+        },
+        "risk_tiers": {
+          "LOW": {
+            "customers": 19,
+            "share": 0.2159,
+            "actual_churn_rate": 0.4737,
+            "mean_predicted": 0.3156
+          },
+          "MEDIUM": {
+            "customers": 33,
+            "share": 0.375,
+            "actual_churn_rate": 0.5455,
+            "mean_predicted": 0.5443
+          },
+          "HIGH": {
+            "customers": 36,
+            "share": 0.4091,
+            "actual_churn_rate": 0.8611,
+            "mean_predicted": 0.8411
+          }
+        },
+        "roc_auc_95ci": [
+          0.6322,
+          0.8431
+        ],
+        "calibration_gap_95ci": [
+          -0.137,
+          0.0509
+        ],
+        "comparison": {
+          "difference_vs_baseline": {
+            "roc_auc": -0.0235,
+            "accuracy": -0.0098,
+            "precision": 0.0928,
+            "recall": 0.1693,
+            "f1": 0.1341
+          },
+          "roc_auc_clearly_below_baseline": false,
+          "roc_auc_clearly_above_baseline": false,
+          "miscalibrated": false
+        }
+      },
+      "6-24 months": {
+        "customers": 543,
+        "retained": 299,
+        "churned": 244,
+        "actual_churn_rate": 0.4494,
+        "mean_predicted_probability": 0.4623,
+        "calibration_gap": 0.013,
+        "roc_auc": 0.724,
+        "accuracy": 0.6814,
+        "precision": 0.6606,
+        "recall": 0.5984,
+        "f1": 0.628,
+        "predicted_churners": 221,
+        "not_calculable": {},
+        "reliability": {
+          "sufficient": true,
+          "reasons": []
+        },
+        "risk_tiers": {
+          "LOW": {
+            "customers": 267,
+            "share": 0.4917,
+            "actual_churn_rate": 0.2772,
+            "mean_predicted": 0.2671
+          },
+          "MEDIUM": {
+            "customers": 170,
+            "share": 0.3131,
+            "actual_churn_rate": 0.5471,
+            "mean_predicted": 0.5591
+          },
+          "HIGH": {
+            "customers": 106,
+            "share": 0.1952,
+            "actual_churn_rate": 0.7264,
+            "mean_predicted": 0.799
+          }
+        },
+        "roc_auc_95ci": [
+          0.6807,
+          0.7664
+        ],
+        "calibration_gap_95ci": [
+          -0.0258,
+          0.0499
+        ],
+        "comparison": {
+          "difference_vs_baseline": {
+            "roc_auc": -0.0357,
+            "accuracy": -0.0216,
+            "precision": -0.0185,
+            "recall": 0.0091,
+            "f1": -0.0031
+          },
+          "roc_auc_clearly_below_baseline": false,
+          "roc_auc_clearly_above_baseline": false,
+          "miscalibrated": false
+        }
+      },
+      "25+ months": {
+        "customers": 369,
+        "retained": 240,
+        "churned": 129,
+        "actual_churn_rate": 0.3496,
+        "mean_predicted_probability": 0.3503,
+        "calibration_gap": 0.0007,
+        "roc_auc": 0.7815,
+        "accuracy": 0.7371,
+        "precision": 0.6667,
+        "recall": 0.4961,
+        "f1": 0.5689,
+        "predicted_churners": 96,
+        "not_calculable": {},
+        "reliability": {
+          "sufficient": true,
+          "reasons": []
+        },
+        "risk_tiers": {
+          "LOW": {
+            "customers": 235,
+            "share": 0.6369,
+            "actual_churn_rate": 0.1915,
+            "mean_predicted": 0.2119
+          },
+          "MEDIUM": {
+            "customers": 106,
+            "share": 0.2873,
+            "actual_churn_rate": 0.5472,
+            "mean_predicted": 0.5379
+          },
+          "HIGH": {
+            "customers": 28,
+            "share": 0.0759,
+            "actual_churn_rate": 0.9286,
+            "mean_predicted": 0.8015
+          }
+        },
+        "roc_auc_95ci": [
+          0.734,
+          0.8281
+        ],
+        "calibration_gap_95ci": [
+          -0.0435,
+          0.0413
+        ],
+        "comparison": {
+          "difference_vs_baseline": {
+            "roc_auc": 0.0218,
+            "accuracy": 0.0341,
+            "precision": -0.0124,
+            "recall": -0.0932,
+            "f1": -0.0622
+          },
+          "roc_auc_clearly_below_baseline": false,
+          "roc_auc_clearly_above_baseline": false,
+          "miscalibrated": false
+        }
+      }
+    }
+  },
+  "flagged": {
+    "roc_auc_clearly_below_baseline": [],
+    "miscalibrated": [],
+    "insufficient_for_reliable_measurement": [
+      "tenure_band=0-5 months"
+    ]
+  }
+}
