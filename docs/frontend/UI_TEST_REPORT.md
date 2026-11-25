@@ -1,5 +1,11 @@
 # CHURN-IQ — Frontend UI Test Report (E5: CHURN-26 to CHURN-31)
 
+> **Historical values (note added 25 November 2026, Sprint 3 closeout).** The values quoted below were measured against the model served **before PR #14** (CHURN-57), for example high risk 1,201, average churn 44.8%, revenue at risk ₹941,958 and average CLV ₹6,089. They were correct at the time, but are **not current**.
+>
+> PR #14 replaced the model and regenerated `customer_predictions.csv`. The current values are high risk 888, average 43.1% and ₹905,045 / month. They were re-checked in a fresh browser run in [`../analytics/DASHBOARD_ANALYTICS_VALIDATION.md`](../analytics/DASHBOARD_ANALYTICS_VALIDATION.md).
+>
+> The behaviour checks below (sorting, error states, layout, navigation) were not re-run for this note.
+
 Test evidence for the E5 frontend stories assigned to Avanish Rajauria. Results were measured automatically, not judged by eye:
 
 * page text was read in a real browser and compared in code with the JSON the API returned;
