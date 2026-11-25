@@ -55,6 +55,30 @@ npm test
 npm run build
 ```
 
+### Contract checks and browser smoke tests (CHURN-55)
+
+The tests in `src/` run against recorded API responses in `src/test/fixtures/`. Two further checks keep those fixtures and the real app honest.
+
+**Fixture contract check.** `backend/tests/test_frontend_fixture_contracts.py` calls the real API for every fixture. It fails if a field is renamed, removed, added or changes JSON type; values are not compared. It runs with the backend suite (`cd backend && python -m pytest -q`).
+
+When the API changes on purpose, re-capture the affected fixture from the running backend. Every new fixture file must be added to `CONTRACTS` in that test.
+
+**Browser smoke tests** (`e2e/smoke.e2e.js`, Playwright with Chromium) cover four journeys:
+
+* the Dashboard KPIs;
+* Risk Table → Customer Detail;
+* What-If;
+* Similarity.
+
+They run against a real `uvicorn` backend and a production build served by `vite preview`, both started automatically. Expected values are read from the same API during the test, so they do not depend on the model's numbers. No Gemini key or email configuration is used.
+
+```bash
+npx playwright install chromium        # once
+E2E_PYTHON=python npm run test:e2e     # E2E_PYTHON: a Python with backend/requirements.txt installed
+```
+
+Both run in CI. The contract check runs in **Backend tests**; the smoke tests run in their own **Browser smoke tests** job, so the two existing required check names are unchanged.
+
 ### API base URL
 
 The frontend calls exactly one API, `VITE_API_URL`. There is no silent fallback to another server.
