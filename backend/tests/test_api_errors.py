@@ -124,7 +124,7 @@ def test_corrupt_required_artifact_raises_clear_error(api, tmp_path, monkeypatch
 
 def test_server_refuses_to_start_without_the_model(tmp_path):
     """Start main.py from a directory without churniq_model.pkl: clear one-line failure."""
-    for name in ('main.py', 'churniq_core.py', 'customer_similarity.py'):
+    for name in ('main.py', 'churniq_core.py', 'customer_similarity.py', 'cors_config.py'):
         shutil.copy(os.path.join(BACKEND_DIR, name), tmp_path / name)
     env = {k: v for k, v in os.environ.items() if k != 'GEMINI_API_KEY'}
     proc = subprocess.run([sys.executable, '-c', 'import main'], cwd=tmp_path, env=env,

@@ -388,8 +388,9 @@ def test_x_forwarded_for_does_not_bypass_limit(client, smtp, payload, email_auth
 def test_rate_limit_response_has_cors_headers(client, smtp, payload, email_auth, tight_limit):
     for _ in range(3):
         client.post('/send-email', json=payload, headers=email_auth)
-    r = client.post('/send-email', json=payload, headers={**email_auth, 'Origin': 'http://x.test'})
-    assert r.status_code == 429 and 'access-control-allow-origin' in r.headers
+    # CHURN-54: CORS now answers only allowed origins, so use the dev frontend's origin.
+    r = client.post('/send-email', json=payload, headers={**email_auth, 'Origin': 'http://localhost:5173'})
+    assert r.status_code == 429 and r.headers['access-control-allow-origin'] == 'http://localhost:5173'
 
 
 def test_limiter_window_slides():

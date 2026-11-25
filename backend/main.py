@@ -60,6 +60,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Path, Request, Secur
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+import cors_config
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -539,24 +540,23 @@ async def email_endpoint_gate(request: Request, call_next):
     return await call_next(request)
 
 
-# ── CORS Middleware ──────────────────────────────────────────────────────────
-# CONCEPT: Browsers enforce CORS (Cross-Origin Resource Sharing) policy.
-# A React app at localhost:5173 CANNOT call an API at localhost:8000
-# by default — different ports = different "origins" = blocked by browser.
-#
-# CORS middleware adds headers to every response:
-#   Access-Control-Allow-Origin: *
-#   Access-Control-Allow-Methods: GET, POST, ...
-#
-# This tells the browser: "Yes, this API is intentionally accessible cross-origin"
-# In production → replace "*" with your actual frontend URL for security:
-#   allow_origins=["https://churniq.vercel.app"]
+# ── CORS Middleware (CHURN-54) ───────────────────────────────────────────────
+# Browsers only let a page call this API from another origin if the response
+# names that origin in Access-Control-Allow-Origin. The allowed origins are the
+# deployed frontend and the local Vite dev/preview servers (cors_config.py);
+# set CORS_ALLOWED_ORIGINS (comma-separated) to change them per deployment.
+# No wildcard, and no credentials: the frontend sends no cookies, and
+# /send-email uses an Authorization header, which does not need them.
+CORS_ALLOWED_ORIGINS = cors_config.parse_allowed_origins(os.environ.get(cors_config.ENV_VAR))
+for _bad in cors_config.invalid_entries(os.environ.get(cors_config.ENV_VAR)):
+    print(f"  ⚠ {cors_config.ENV_VAR}: ignored invalid origin {_bad!r}")
+print(f"  ✓ CORS allowed origins: {', '.join(CORS_ALLOWED_ORIGINS)}")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # Allow ALL origins (dev mode)
-    allow_credentials=True,
-    allow_methods=["*"],        # Allow all HTTP methods
-    allow_headers=["*"],        # Allow all headers
+    allow_origins=CORS_ALLOWED_ORIGINS,
+    allow_credentials=cors_config.ALLOW_CREDENTIALS,
+    allow_methods=cors_config.ALLOWED_METHODS,
+    allow_headers=cors_config.ALLOWED_HEADERS,
 )
 
 
