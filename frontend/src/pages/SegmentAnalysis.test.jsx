@@ -1,7 +1,7 @@
 // CHURN-53: every figure and claim on the Segments page comes from GET /segments.
 import { describe, it, expect } from 'vitest'
 import { screen, within, fireEvent } from '@testing-library/react'
-import SegmentAnalysis, { buildInsights, revenueByPlan, fmtRupees } from './SegmentAnalysis'
+import SegmentAnalysis, { buildInsights, revenueByPlan, fmtRupees, tenureLabel, TENURE_LABELS, METRIC_LABEL } from './SegmentAnalysis'
 import { mockFetch, renderAt, networkDown, jsonResponse } from '../test/helpers'
 import segments from '../test/fixtures/segments.json'
 
@@ -82,8 +82,8 @@ describe('Segments page: data state', () => {
     const list = await screen.findByTestId('insights')
     const items = within(list).getAllByRole('listitem').map(li => li.textContent)
     expect(items).toHaveLength(5)
-    expect(items.join(' ')).toContain('customers with tenure 0-3m have the highest predicted churn rate (73.2%)')
-    expect(items.join(' ')).toContain('Average predicted churn rate across 5,001 scored customers: 44.8%.')
+    expect(items.join(' ')).toContain('customers with tenure 1–3 months have the highest average predicted churn probability (73.2%)')
+    expect(items.join(' ')).toContain('Average predicted churn probability across 5,001 scored customers: 44.8%.')
   })
 
   it('compares each genre with the API average instead of a fixed threshold', async () => {
@@ -102,10 +102,10 @@ describe('Segments page: data state', () => {
 describe('buildInsights / revenueByPlan', () => {
   it('derives highest and lowest per grouping from the fixture', () => {
     const ins = buildInsights(segments)
-    expect(ins[0]).toBe('Tenure: customers with tenure 0-3m have the highest predicted churn rate (73.2%), 38.4 points above customers with tenure 2yr+ (34.8%).')
-    expect(ins[1]).toBe('Device: Tablet users have the highest predicted churn rate (46.9%), 6.9 points above Laptop users (40%).')
-    expect(ins[2]).toBe('Plan: Standard plan customers have the highest predicted churn rate (45.5%), 2.9 points above Premium plan customers (42.6%).')
-    expect(ins[3]).toMatch(/^Preferred genre: Documentary viewers have the highest predicted churn rate \(48\.8%\)/)
+    expect(ins[0]).toBe('Tenure: customers with tenure 1–3 months have the highest average predicted churn probability (73.2%), 38.4 points above customers with tenure 25+ months (34.8%).')
+    expect(ins[1]).toBe('Device: Tablet users have the highest average predicted churn probability (46.9%), 6.9 points above Laptop users (40%).')
+    expect(ins[2]).toBe('Plan: Standard plan customers have the highest average predicted churn probability (45.5%), 2.9 points above Premium plan customers (42.6%).')
+    expect(ins[3]).toMatch(/^Preferred genre: Documentary viewers have the highest average predicted churn probability \(48\.8%\)/)
   })
 
   it('follows the data when it changes', () => {
@@ -114,7 +114,7 @@ describe('buildInsights / revenueByPlan', () => {
       { device_type: 'Laptop', churn_rate_pct: 10 },
     ] }
     expect(buildInsights(flipped)).toEqual([
-      'Device: Mobile users have the highest predicted churn rate (70%), 60 points above Laptop users (10%).',
+      'Device: Mobile users have the highest average predicted churn probability (70%), 60 points above Laptop users (10%).',
     ])
   })
 
@@ -129,7 +129,7 @@ describe('buildInsights / revenueByPlan', () => {
       overall: { avg_churn_rate_pct: null, scored_customers: 0 },
     }
     expect(buildInsights(sparse)).toEqual([
-      'Device: Tablet users have the highest predicted churn rate (50%), 20 points above Laptop users (30%).',
+      'Device: Tablet users have the highest average predicted churn probability (50%), 20 points above Laptop users (30%).',
     ])
     expect(buildInsights(null)).toEqual([])
   })
@@ -141,5 +141,40 @@ describe('buildInsights / revenueByPlan', () => {
       { plan_type: 'Standard' },
     ])).toEqual([{ segment: 'Basic', risk: 10.5 }])
     expect(revenueByPlan(undefined)).toEqual([])
+  })
+})
+
+// CHURN-70: the page shows mean *predicted* probabilities, so it must not call them "churn rate".
+describe('Segments page: terminology (CHURN-70)', () => {
+  it('titles every chart and the genre table as average predicted churn probability', async () => {
+    mockFetch({ '/segments': segments })
+    const { container } = renderAt(<SegmentAnalysis />)
+    await screen.findByText('Insights from the data')
+    for (const dim of ['Plan Type', 'Device Type', 'Tenure Bucket', 'Preferred Genre']) {
+      expect(screen.getByText(`Average Predicted Churn Probability by ${dim}`)).toBeInTheDocument()
+    }
+    expect(screen.getByRole('columnheader', { name: METRIC_LABEL })).toBeInTheDocument()
+    expect(METRIC_LABEL).toBe('Avg predicted churn probability')
+    expect(container.textContent).not.toMatch(/Churn Rate/)
+    expect(container.textContent).not.toMatch(/predicted churn rate/)
+  })
+
+  it('maps the right-closed API tenure buckets to non-overlapping month ranges', () => {
+    expect(segments.by_tenure.map(r => tenureLabel(r.tenure_bucket))).toEqual([
+      '1–3 months', '4–6 months', '7–12 months', '13–24 months', '25+ months',
+    ])
+    expect(Object.keys(TENURE_LABELS)).toEqual(segments.by_tenure.map(r => r.tenure_bucket))
+    expect(tenureLabel('unexpected')).toBe('unexpected')   // unknown buckets are shown as-is
+  })
+
+  it('leaves every number from the API unchanged', async () => {
+    mockFetch({ '/segments': segments })
+    renderAt(<SegmentAnalysis />)
+    await screen.findByText('Insights from the data')
+    for (const g of segments.by_genre) {
+      const row = screen.getByText(g.preferred_genre).closest('tr')
+      expect(within(row).getByText(`${g.churn_rate_pct}%`)).toBeInTheDocument()
+    }
+    expect(buildInsights(segments)[0]).toContain('(73.2%)')
   })
 })
