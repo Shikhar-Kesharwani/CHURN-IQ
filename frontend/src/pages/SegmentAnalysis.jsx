@@ -9,6 +9,23 @@ import {
 // CHURN-53: nothing on this page is hard-coded. Every figure and every insight
 // is derived from GET /segments. The API's rates are average *predicted* churn
 // probabilities (model output), so the page labels them as predicted.
+// CHURN-70: every title, tooltip and header says "average predicted churn
+// probability" (matching the Dashboard), never "churn rate", which readers
+// take to mean the observed share of customers who churned.
+
+export const METRIC_LABEL = 'Avg predicted churn probability'
+
+// GET /segments builds tenure buckets with pd.cut(bins=[0, 3, 6, 12, 24, 72]),
+// which is right-closed: "3-6m" means 4-6 months. Display non-overlapping
+// month ranges; the API values themselves are unchanged.
+export const TENURE_LABELS = {
+  '0-3m':  '1–3 months',
+  '3-6m':  '4–6 months',
+  '6-12m': '7–12 months',
+  '1-2yr': '13–24 months',
+  '2yr+':  '25+ months',
+}
+export const tenureLabel = (bucket) => TENURE_LABELS[bucket] ?? bucket
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v)
 
@@ -30,7 +47,7 @@ function extremes(rows, key) {
 }
 
 const GROUPS = [
-  ['by_tenure', 'tenure_bucket',   'Tenure',          (v) => `customers with tenure ${v}`],
+  ['by_tenure', 'tenure_bucket',   'Tenure',          (v) => `customers with tenure ${tenureLabel(v)}`],
   ['by_device', 'device_type',     'Device',          (v) => `${v} users`],
   ['by_plan',   'plan_type',       'Plan',            (v) => `${v} plan customers`],
   ['by_genre',  'preferred_genre', 'Preferred genre', (v) => `${v} viewers`],
@@ -38,7 +55,7 @@ const GROUPS = [
 
 /**
  * Insights computed from the /segments response: for each grouping, the
- * highest and lowest predicted churn rate, plus the overall average.
+ * highest and lowest average predicted churn probability, plus the overall average.
  * Groups with fewer than two usable rows are skipped rather than guessed.
  */
 export function buildInsights(s) {
@@ -48,12 +65,12 @@ export function buildInsights(s) {
     const e = extremes(s[field], key)
     if (!e) continue
     const gap = Math.round((e.hi.churn_rate_pct - e.lo.churn_rate_pct) * 10) / 10
-    out.push(`${label}: ${name(e.hi[key])} have the highest predicted churn rate (${e.hi.churn_rate_pct}%), ` +
+    out.push(`${label}: ${name(e.hi[key])} have the highest average predicted churn probability (${e.hi.churn_rate_pct}%), ` +
              `${gap} points above ${name(e.lo[key])} (${e.lo.churn_rate_pct}%).`)
   }
   const o = s.overall
   if (o && isNum(o.avg_churn_rate_pct) && isNum(o.scored_customers)) {
-    out.push(`Average predicted churn rate across ${o.scored_customers.toLocaleString('en-US')} scored customers: ${o.avg_churn_rate_pct}%.`)
+    out.push(`Average predicted churn probability across ${o.scored_customers.toLocaleString('en-US')} scored customers: ${o.avg_churn_rate_pct}%.`)
   }
   return out
 }
@@ -84,59 +101,60 @@ export default function SegmentAnalysis() {
   const avg = s.overall?.avg_churn_rate_pct
   const revenue = revenueByPlan(s.by_plan)
   const insights = buildInsights(s)
+  const tenureRows = (s.by_tenure || []).map(r => ({ ...r, tenure_label: tenureLabel(r.tenure_bucket) }))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em' }}>Segment Analysis</h2>
-        <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 3 }}>Predicted churn breakdown by key customer segments</p>
+        <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 3 }}>Average predicted churn probability (model output) by key customer segments. These are predictions, not observed churn rates.</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 14 }}>
 
         {/* By Plan */}
-        <ChartCard title="Churn Rate by Plan Type">
+        <ChartCard title="Average Predicted Churn Probability by Plan Type">
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={s.by_plan} barSize={44} margin={{ left: -20 }}>
               <XAxis dataKey="plan_type" tick={{ fontSize: 12, fill: 'var(--text2)' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: 'var(--text2)' }} axisLine={false} tickLine={false} unit="%" />
-              <Tooltip formatter={v => [`${v}%`, 'Churn Rate']} contentStyle={tip} />
+              <Tooltip formatter={v => [`${v}%`, METRIC_LABEL]} contentStyle={tip} />
               <Bar dataKey="churn_rate_pct" fill="var(--text)" radius={[6,6,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
         {/* By Device */}
-        <ChartCard title="Churn Rate by Device Type">
+        <ChartCard title="Average Predicted Churn Probability by Device Type">
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={s.by_device} barSize={36} margin={{ left: -20 }}>
               <XAxis dataKey="device_type" tick={{ fontSize: 11, fill: 'var(--text2)' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: 'var(--text2)' }} axisLine={false} tickLine={false} unit="%" />
-              <Tooltip formatter={v => [`${v}%`, 'Churn Rate']} contentStyle={tip} />
+              <Tooltip formatter={v => [`${v}%`, METRIC_LABEL]} contentStyle={tip} />
               <Bar dataKey="churn_rate_pct" fill="var(--text2)" radius={[6,6,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
         {/* By Tenure */}
-        <ChartCard title="Churn Rate by Tenure Bucket">
+        <ChartCard title="Average Predicted Churn Probability by Tenure Bucket">
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={s.by_tenure} margin={{ left: -20 }}>
-              <XAxis dataKey="tenure_bucket" tick={{ fontSize: 11, fill: 'var(--text2)' }} axisLine={false} tickLine={false} />
+            <LineChart data={tenureRows} margin={{ left: -20 }}>
+              <XAxis dataKey="tenure_label" interval={0} tick={{ fontSize: 10, fill: 'var(--text2)' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: 'var(--text2)' }} axisLine={false} tickLine={false} unit="%" />
-              <Tooltip formatter={v => [`${v}%`, 'Churn Rate']} contentStyle={tip} />
+              <Tooltip formatter={v => [`${v}%`, METRIC_LABEL]} contentStyle={tip} />
               <Line type="monotone" dataKey="churn_rate_pct" stroke="var(--text)" strokeWidth={2.5} dot={{ r: 4, fill: 'var(--text)' }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
 
         {/* Genre table */}
-        <ChartCard title="Churn Rate by Preferred Genre">
+        <ChartCard title="Average Predicted Churn Probability by Preferred Genre">
           <table className="tbl">
             <thead>
               <tr>
                 <th>Genre</th>
-                <th>Churn Rate</th>
+                <th>{METRIC_LABEL}</th>
                 <th>vs Average{isNum(avg) ? ` (${avg}%)` : ''}</th>
               </tr>
             </thead>
