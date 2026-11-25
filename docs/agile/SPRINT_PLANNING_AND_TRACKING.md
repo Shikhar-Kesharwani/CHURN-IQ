@@ -27,6 +27,11 @@
 > | CHURN-33 | **Done.** Criteria amended to the two decisions; original wording kept in the description; evidence in comment 10138 |
 > | CHURN-36 | In Progress. Criteria amended the same way; `docs/PROJECT_PROGRESS_REPORT.md` section F is the final report, and it closes once a teammate approves and merges it |
 >
+> **Later on 25 Nov:** under the same two decisions, the shared ceremony records CHURN-35, 60, 63, 64, 67 and 68 were closed as **not applicable**.
+> * Their original Definitions of Done are kept in the descriptions, and each carries the label `not-applicable`.
+> * Closing them does not mean any review, retrospective or stand-up took place.
+> * CHURN-59, 62 and 66 (assigned records of the same kind) are unchanged.
+>
 > **Current issue status** is in `docs/PROJECT_PROGRESS_REPORT.md`, section F.
 
 This document is a **planning agenda and a set of blank tracking templates**. It records the current Jira state, and gives the team a process to follow once sprints actually run.
