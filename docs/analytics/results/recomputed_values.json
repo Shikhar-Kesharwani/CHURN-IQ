@@ -1,0 +1,287 @@
+{
+ "dashboard": {
+  "dataset": {
+   "rows": 5001,
+   "columns": 22,
+   "git_blob_sha": "1975eeab8c4dfc8f75a3da5a20c010e11612c564"
+  },
+  "predictions": {
+   "rows": 5001,
+   "git_blob_sha": "575d24b92fafef8808ceace4c85ef1cfe001b2a7",
+   "prediction_source": {
+    "cv_out_of_fold": 4000,
+    "holdout_test": 1000,
+    "demo": 1
+   }
+  },
+  "join": {
+   "matched": 5001,
+   "scored": 5001,
+   "unscored": 0
+  },
+  "risk_counts_from_probability": {
+   "LOW": 2668,
+   "MEDIUM": 1445,
+   "HIGH": 888
+  },
+  "risk_counts_stored_risk_level": {
+   "LOW": 2668,
+   "MEDIUM": 1445,
+   "HIGH": 888
+  },
+  "high_risk_pct": 17.8,
+  "avg_churn_prob": 0.4309,
+  "revenue_at_risk_monthly": 905045.48,
+  "model_clv_mean": 6233.52,
+  "dashboard_avg_clv_weighted_from_rounded_plan_means": 6233.31,
+  "model_clv_tiers": {
+   "Low": 2125,
+   "Medium": 1635,
+   "High": 1241
+  },
+  "generator_clv_segment_not_used_by_dashboard": {
+   "Low": 2140,
+   "Medium": 1593,
+   "High": 1268
+  },
+  "high_risk_and_high_model_clv": 3,
+  "churn_signals": {
+   "low_engagement_watch_lt_3h": 1449,
+   "payment_issues_failures_gt_0": 2000,
+   "new_customers_tenure_lt_6m": 433,
+   "support_issues_tickets_gt_1": 1237
+  },
+  "predicted_rate_segments": {
+   "plan_type": {
+    "Basic": {
+     "predicted_rate_pct": 43.4,
+     "customers": 2226
+    },
+    "Premium": {
+     "predicted_rate_pct": 40.7,
+     "customers": 980
+    },
+    "Standard": {
+     "predicted_rate_pct": 44.0,
+     "customers": 1795
+    }
+   },
+   "device_type": {
+    "Laptop": {
+     "predicted_rate_pct": 41.7,
+     "customers": 1286
+    },
+    "Mobile": {
+     "predicted_rate_pct": 44.0,
+     "customers": 1292
+    },
+    "Smart TV": {
+     "predicted_rate_pct": 43.6,
+     "customers": 1216
+    },
+    "Tablet": {
+     "predicted_rate_pct": 43.1,
+     "customers": 1207
+    }
+   },
+   "tenure_bucket": {
+    "0-3m": {
+     "predicted_rate_pct": 70.1,
+     "customers": 206
+    },
+    "1-2yr": {
+     "predicted_rate_pct": 46.0,
+     "customers": 1622
+    },
+    "2yr+": {
+     "predicted_rate_pct": 33.7,
+     "customers": 1939
+    },
+    "3-6m": {
+     "predicted_rate_pct": 55.7,
+     "customers": 336
+    },
+    "6-12m": {
+     "predicted_rate_pct": 47.2,
+     "customers": 898
+    }
+   },
+   "preferred_genre": {
+    "Action": {
+     "predicted_rate_pct": 42.6,
+     "customers": 679
+    },
+    "Comedy": {
+     "predicted_rate_pct": 42.0,
+     "customers": 732
+    },
+    "Documentary": {
+     "predicted_rate_pct": 45.4,
+     "customers": 738
+    },
+    "Drama": {
+     "predicted_rate_pct": 42.3,
+     "customers": 723
+    },
+    "Kids": {
+     "predicted_rate_pct": 42.9,
+     "customers": 727
+    },
+    "Romance": {
+     "predicted_rate_pct": 43.4,
+     "customers": 694
+    },
+    "Thriller": {
+     "predicted_rate_pct": 42.9,
+     "customers": 708
+    }
+   }
+  }
+ },
+ "quality": {
+  "missing_values": 0,
+  "duplicate_customer_id": 0,
+  "duplicate_full_rows": 0,
+  "invalid_values_by_column": {
+   "age": 0,
+   "monthly_charge": 0,
+   "tenure_months": 0,
+   "watch_hours_per_week": 0,
+   "num_profiles": 0,
+   "logins_last_30_days": 0,
+   "last_login_days_ago": 0,
+   "payment_failures_3m": 0,
+   "support_tickets": 0,
+   "clv_score": 0,
+   "churn_probability": 0,
+   "plan_type": 0,
+   "device_type": 0,
+   "payment_method": 0,
+   "preferred_genre": 0,
+   "gender": 0,
+   "country": 0,
+   "clv_segment": 0
+  },
+  "invalid_values_total": 0,
+  "plan_price_mismatches": 0,
+  "non_binary_churn": 0,
+  "churn_probability_outside_0_1": 0,
+  "duplicate_names": 53,
+  "duplicate_emails": 3
+ },
+ "observed_findings": {
+  "overall": {
+   "churned": 2155,
+   "customers": 5001,
+   "observed_churn_pct": 43.1
+  },
+  "plan_type": {
+   "Basic": {
+    "observed_churn_pct": 43.9,
+    "customers": 2226
+   },
+   "Standard": {
+    "observed_churn_pct": 43.6,
+    "customers": 1795
+   },
+   "Premium": {
+    "observed_churn_pct": 40.2,
+    "customers": 980
+   }
+  },
+  "device_type": {
+   "Mobile": {
+    "observed_churn_pct": 45.5,
+    "customers": 1292
+   },
+   "Laptop": {
+    "observed_churn_pct": 39.7,
+    "customers": 1286
+   },
+   "Smart TV": {
+    "observed_churn_pct": 43.6,
+    "customers": 1216
+   },
+   "Tablet": {
+    "observed_churn_pct": 43.6,
+    "customers": 1207
+   }
+  },
+  "tenure": {
+   "0-5 months": {
+    "observed_churn_pct": 65.4,
+    "customers": 433
+   },
+   "6-24 months": {
+    "observed_churn_pct": 46.5,
+    "customers": 2629
+   },
+   "25+ months": {
+    "observed_churn_pct": 33.5,
+    "customers": 1939
+   }
+  },
+  "watch_hours_per_week": {
+   "<2": {
+    "observed_churn_pct": 71.8,
+    "customers": 1019
+   },
+   "2 to <5": {
+    "observed_churn_pct": 42.8,
+    "customers": 1191
+   },
+   "5+": {
+    "observed_churn_pct": 32.7,
+    "customers": 2791
+   }
+  },
+  "payment_failures_3m": {
+   "0": {
+    "observed_churn_pct": 35.0,
+    "customers": 3001
+   },
+   "1": {
+    "observed_churn_pct": 45.5,
+    "customers": 996
+   },
+   "2": {
+    "observed_churn_pct": 54.0,
+    "customers": 498
+   },
+   "3": {
+    "observed_churn_pct": 74.0,
+    "customers": 350
+   },
+   "4": {
+    "observed_churn_pct": 80.1,
+    "customers": 156
+   }
+  },
+  "support_tickets": {
+   "0": {
+    "observed_churn_pct": 36.9,
+    "customers": 2527
+   },
+   "1": {
+    "observed_churn_pct": 43.6,
+    "customers": 1237
+   },
+   "2": {
+    "observed_churn_pct": 48.4,
+    "customers": 610
+   },
+   "3": {
+    "observed_churn_pct": 58.2,
+    "customers": 354
+   },
+   "4": {
+    "observed_churn_pct": 60.2,
+    "customers": 181
+   },
+   "5": {
+    "observed_churn_pct": 80.4,
+    "customers": 92
+   }
+  }
+ }
+}

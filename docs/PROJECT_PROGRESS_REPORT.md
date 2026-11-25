@@ -1,5 +1,107 @@
 # CHURN-IQ — Project Progress Report
 
+> **Update note (25 November 2026).** §0 below is the **current** status. It was read from Jira, GitHub and `main` @ `074ec94` after PR #14 was merged, and was prepared by Aryan Gupta for the Sprint 3 closeout with AI-assisted development tools.
+>
+> §1 to §14 are the **24 November snapshot** (after PR #8), kept unchanged for history. Where §0 and the snapshot disagree, §0 is current.
+
+## 0. Current status (25 November 2026)
+
+### 0.1 How the sprints are used
+
+**Sprints 1–3 are task groupings, not calendar sprints.**
+
+* The team uses Sprint 1, Sprint 2 and Sprint 3 only to divide the work into three groups.
+* By team decision (CHURN-58, Jira comment 10085), all three Jira sprints stay in the Future state with **no start or end dates**.
+* Consequently, this report claims **no sprint dates, stand-ups, burndown charts, sprint reports, sprint reviews or retrospectives**, and none have been created.
+* The only planning meeting on record is the Sprint 1 planning session on 20 November 2026 (CHURN-58).
+
+### 0.2 Jira status (69 issues, read 25 November 2026)
+
+| Type | Total | Done | In Progress | To Do |
+|---|---|---|---|---|
+| Epics | 6 | 3 (E3, E4, E5) | 1 (E6) | 2 (E1, E2) |
+| Stories | 35 | 21 | 3 (CHURN-32, CHURN-33, CHURN-36) | 11 (CHURN-7 to CHURN-12, CHURN-34, CHURN-35, CHURN-54, CHURN-55, CHURN-56) |
+| Bugs | 16 (CHURN-37 to CHURN-44, CHURN-46 to CHURN-53) | **16** | 0 | 0 |
+| Tasks (sprint record tasks CHURN-58 to CHURN-69) | 12 | 4 (CHURN-58, CHURN-61, CHURN-65, CHURN-69) | 0 | 8 |
+| **Total** | **69** | **44** | **4** | **21** |
+
+* **Planned Stories (CHURN-7 to CHURN-36):** still 19 of 30 Done, 71 of 103 points. CHURN-11 and CHURN-12 now have evidence in an open PR (§0.4), but are **not** Done.
+* **Follow-up Stories Done since the snapshot:**
+  * CHURN-45: monotone constraints evaluated; decision "adopt" (PR #12).
+  * CHURN-57: model adopted in production (PR #14).
+* **Bugs Done since the snapshot:**
+  * CHURN-46: the dev requirements install on Python 3.10.13, and CI runs on that version (PR #13).
+  * CHURN-53: the Segments page uses API data (PR #11).
+* **No Bug is open.**
+
+### 0.3 Pull requests since the snapshot
+
+| PR | Jira | Opened by | Approved by (before merge) | Merged | Merge commit |
+|---|---|---|---|---|---|
+| #9 | CHURN-32, CHURN-33, CHURN-36 (report update) | AvanishRajauria | Shikhar-Kesharwani | 24 Nov | `7f3e75f` |
+| #10 | CHURN-33 (proposed Sprint 1 plan) | AvanishRajauria | — | **open** | — |
+| #11 | CHURN-53 | AvanishRajauria | Shikhar-Kesharwani | 24 Nov | `8ea44c5` |
+| #13 | CHURN-46 | Shikhar-Kesharwani | AvanishRajauria | 24 Nov | `2e093fc` |
+| #12 | CHURN-45 | aryan-guptta-2007 | AvanishRajauria | 25 Nov | `e750eed` |
+| #14 | CHURN-57 | aryan-guptta-2007 | AvanishRajauria | 25 Nov | `074ec94` |
+| #15 | CHURN-56 (segment validation) | aryan-guptta-2007 | awaiting review | **open** | — |
+
+* **CI:** "Backend tests" and "Frontend build" passed on PR #14's merged head (`fd8a5cb`) and on PR #15.
+* **Backend CI runtime:** since PR #13, the backend job runs on Python 3.10.13, matching `runtime.txt`.
+
+### 0.4 Production model (CHURN-45 → CHURN-57)
+
+* **Model:** the regularised XGBoost with monotone constraints (`regularised_monotonic`: depth 2, learning rate 0.03, 400 trees, no SMOTE, seed 42) has been served since PR #14.
+* **Held-out metrics (1,000 customers):** ROC-AUC **0.7597**, accuracy 0.703, precision 0.679, recall 0.589, F1 0.631.
+  * The snapshot's 0.7167 belongs to the previous model.
+* **What-If:** on the five constrained inputs, no customer's risk moves in the wrong direction.
+* **Every served value changed with the new model.** Current dashboard values: 888 high-risk customers (17.8%), average predicted churn 43.1%, and revenue at risk ₹905,045 / month.
+* **Reports:** see `docs/ml/07-monotonic-constraints.md`. CHURN-56 (segment-level validation, PR #15) is under review, not merged.
+
+### 0.5 Sprint 3 technical evidence (this update's PR)
+
+| Document | Jira | What it verifies |
+|---|---|---|
+| `docs/analytics/DASHBOARD_ANALYTICS_VALIDATION.md` | CHURN-11 | Every Dashboard and Segment Analysis value, recomputed from the CSVs, matches the API and a fresh browser run on the post-PR-14 model. No mismatch was found, so no Bug was logged. |
+| `docs/data/DATA_DICTIONARY.md` | CHURN-12 | All 22 columns with type, meaning, domain and role; quality checks (0 missing, 0 duplicates, 0 invalid values); observed-churn findings; generator fields vs model outputs |
+
+`docs/frontend/UI_TEST_REPORT.md` now carries a note that its dashboard values are historical (pre-PR-14).
+
+### 0.6 Verified vs not verified
+
+**Verified** (Jira status, merged PRs, CI or tests run for this update):
+
+* E2: 5 of 5 planned Stories Done, plus CHURN-45 and CHURN-57.
+* E3, E4 and E5 Done; all 16 Bugs Done.
+* The dashboard numbers reconcile (CHURN-11 evidence).
+* Test results (§0.7).
+
+**Not verified or not done:**
+
+* **E1 Stories:** CHURN-7 to CHURN-10 have not been started. CHURN-11 and CHURN-12 have evidence awaiting review; their status is unchanged, and their drafted criteria still need team approval.
+* **Unstarted follow-ups:** CHURN-54 (production CORS configuration) and CHURN-55 (contract and browser smoke tests in CI) have not been started.
+* **CHURN-56** is in review (PR #15).
+* **CHURN-36:** this report has not yet been reviewed by the team. Its criteria ask for burndown screenshots, sprint reports and review/retrospective notes; under §0.1 those do not exist and will not be created.
+* **Ceremony record tasks:** CHURN-59, CHURN-60, CHURN-62 to CHURN-64 and CHURN-66 to CHURN-68 are To Do. Each of them records an event that did not take place.
+* **Deployment:** the deployed Vercel/Render site was not tested for this update.
+
+### 0.7 Test results for this update (on `main` @ `074ec94` plus this PR's documentation changes)
+
+All of these were run locally on Python 3.13.18 and Node 22.23.5. CI on this PR runs the backend on Python 3.10.13.
+
+| Check | Command | Result |
+|---|---|---|
+| Backend tests | `cd backend && python -m pytest -q` | **494 passed** |
+| Frontend tests | `cd frontend && npm test` | **82 passed**, 8 files |
+| Frontend build | `cd frontend && npm run build` | builds; only the existing chunk-size warning |
+| Independent recomputation | `python docs/analytics/recompute_analytics.py` | identical output on two runs; all values match the API |
+| Browser check | Playwright and Chromium against local `uvicorn` and `vite` | Dashboard and Segment Analysis values match the API; no console or page errors |
+| Markdown links | relative links and repository paths in the four changed documents | all resolve |
+
+---
+
+# Snapshot of 24 November 2026 (historical)
+
 **Report date:** 24 November 2026. This version was updated after PR #8 was merged.
 **Prepared by:** Avanish Rajauria, for CHURN-36 (E6 — Agile Management & Integration)
 **Sources:**
