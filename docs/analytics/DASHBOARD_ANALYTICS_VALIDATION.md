@@ -128,3 +128,21 @@ python docs/analytics/recompute_analytics.py          # pandas + numpy only
 cd backend && uvicorn main:app --port 8000            # terminal 1
 cd frontend && npm ci && npx vite --port 5173         # terminal 2, then open / and /segments
 ```
+
+## 10. Independent re-verification (CHURN-11, Shimon Sarin)
+
+Added by Shimon Sarin, the CHURN-11 owner, on 25 Nov 2026 at `main` @ `badbdb2`. That's after PR #15 (CHURN-56) and PR #16 (this document) were merged. Prepared with AI-assisted development tools.
+
+The aim was to confirm the figures above independently, without repeating the whole report.
+
+| Check | How | Result |
+|---|---|---|
+| Inputs unchanged since §2 | `git hash-object` on both CSVs | Dataset blob `1975eeab…` and predictions blob `575d24b9…` are **unchanged**, so §5–§6 still describe the current data |
+| §3 script reproduces | Re-ran `python docs/analytics/recompute_analytics.py`, on Python **3.10.13** (the production runtime; §3 used 3.13) | `results/recomputed_values.json` is **byte-identical**, with no diff |
+| API agrees with the recomputation | `python docs/data/analysis/api_crosscheck.py` (FastAPI `TestClient`) compares `/dashboard/summary` and `/segments` with `recomputed_values.json` | **15 of 15 match**: total 5,001; risk counts 888 / 1,445 / 2,668; high-risk 17.8%; average 0.4309; revenue at risk ₹905,045.48; high-value at risk 3; the 4 churn signals (1,449 / 2,000 / 433 / 1,237); CLV tiers 1,241 / 1,635 / 2,125 |
+| Independent pandas code agrees | `docs/data/analysis/e1_analysis.py`, written separately for CHURN-7 to CHURN-9 | Counts and mean predicted rates for all 19 segment rows match `/segments` (see `docs/data/03-segment-patterns.md` §3) |
+| Dashboard page in the browser | Chromium (Playwright) against a local `uvicorn` and Vite | 5,001 · 888 · "17.8% of scored" · ₹905,045 · 43.1% · average CLV ₹6,233 · tiers 1,241 / 1,635 / 2,125; 0 console errors. Screenshot: [`../data/evidence/churn11_dashboard.png`](../data/evidence/churn11_dashboard.png) |
+
+**Result: no mismatch, so no Bug was logged for the Dashboard.**
+
+**Related finding, on the Segments page, not the Dashboard:** that page labels the same predicted values as "Churn Rate". This is logged as **CHURN-70** under CHURN-10. The Dashboard's "Average Churn Probability by Plan Type" is labelled correctly.

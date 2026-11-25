@@ -2,6 +2,7 @@
 
 **Jira:** CHURN-12 (E1; assignee Shimon Sarin). Evidence prepared by Aryan Gupta for the Sprint 3 closeout, with AI-assisted development tools.
 **Dataset:** `backend/ott_churn_dataset.csv`, 5,001 rows × 22 columns, git blob `1975eeab8c4dfc8f75a3da5a20c010e11612c564` (`main` @ `074ec94`).
+**Verified and extended for CHURN-12 by Shimon Sarin (owner), 25 Nov 2026, at `main` @ `badbdb2`:** every row of §3 was re-checked against an independent recomputation (`docs/data/analysis/e1_analysis.py` → `churn7_quality`). Types, domains, observed ranges, category counts and repeat counts all match. §6 was corrected on logins, and §7 now summarises CHURN-7 to CHURN-11.
 **Reproduce:** `python docs/analytics/recompute_analytics.py`. The `quality` and `observed_findings` sections of [`../analytics/results/recomputed_values.json`](../analytics/results/recomputed_values.json) hold every number quoted below.
 
 ## 1. About the data
@@ -98,6 +99,7 @@ These are **observed synthetic outcomes**, not model predictions. For the model'
 | Watch time per week | < 2 h (1,019) / 2 to < 5 h (1,191) / 5+ h (2,791) | **71.8%** / 42.8% / 32.7% |
 | Payment failures, last 3 months | 0 (3,001) / 1 (996) / 2 (498) / 3 (350) / 4 (156) | 35.0% / 45.5% / 54.0% / 74.0% / **80.1%** |
 | Support tickets | 0 (2,527) / 1 (1,237) / 2 (610) / 3 (354) / 4 (181) / 5 (92) | 36.9% / 43.6% / 48.4% / 58.2% / 60.2% / **80.4%** |
+| Logins, last 30 days | 0–5 (91) / 6–10 (1,709) / 11–15 (2,474) / 16–20 (681) / 21+ (46) | 52.7% / 43.1% / 41.9% / 46.3% / 43.5%; **no meaningful association** (AUC 0.504; CHURN-8) |
 
 **Interpretation:**
 
@@ -109,12 +111,21 @@ These are **observed synthetic outcomes**, not model predictions. For the model'
 3. **Plan and device differ only slightly** (about 4 to 6 points).
    * In the generator, they matter only through a Basic + Mobile interaction, which fits that small difference.
    * Device and plan differences should not be over-interpreted.
-4. **These patterns mirror the generator's scoring formula** (low watch time, few logins, long absence, payment failures, tickets and short tenure all add to the score). They describe how the synthetic data was built. They do not show what causes real churn.
+4. **These patterns mirror the generator's scoring formula** (low watch time, long absence, payment failures, tickets and short tenure all add to the score). They describe how the synthetic data was built. They do not show what causes real churn.
+5. **Logins are a formula term with almost no effect in the data** (CHURN-8). The generator only adds risk for fewer than 3 logins, and only 3 of 5,001 customers are below that. Logins are drawn as Poisson(12), observed 1–26.
 
-## 7. Scope note
+## 7. Findings from CHURN-7 to CHURN-11 (E1)
 
-CHURN-12's acceptance criteria also ask for "key findings from Stories 1–5": CHURN-7 to CHURN-11, all under E1.
+| Story | Document | Key findings |
+|---|---|---|
+| CHURN-7 Data quality | [01-data-quality.md](01-data-quality.md) | **Clean:** 0 missing values (per column), 0 duplicate rows or IDs, 0 out-of-range values (11 numeric columns), 0 unknown categories (7 columns), 0 plan–price mismatches, 0 non-binary labels, 5,001 / 5,001 customers with a prediction. **One known inconsistency:** demo row CUST99999 has a hand-set generator `clv_score` of 500 (the formula gives 47.76). It doesn't reach the model or the API. These rules are now enforced by `backend/tests/test_dataset_quality.py`. |
+| CHURN-8 Behaviour | [02-behaviour-analysis.md](02-behaviour-analysis.md) | **Strongest associations with observed churn:** watch hours (V 0.297; under 2 h 70.1% vs 5 h+ about 32%), payment failures (V 0.257; 35.0% to 80.1%), tenure (V 0.187; 1–5 months 65.4%), support tickets (V 0.175). **Little or none:** logins (AUC 0.504), plan (V 0.029). |
+| CHURN-9 Segments | [03-segment-patterns.md](03-segment-patterns.md) | **Tenure** is the only strong single segment (0-3m 72.3% vs 2yr+ 33.5%). Device, plan, genre, country, gender, age and payment method all fall within about 6 points of 43.1%. **Highest-risk combination:** watch under 2 h with 3–4 payment failures, 94.6% (n = 112). **Lowest:** watch 5 h+ with no failures, 23.5% (n = 1,618). `GET /segments` matches the independent recomputation on all 19 rows. Model mean predictions are within ±2.4 points of observed churn in every group. |
+| CHURN-10 Segments page | [04-segment-page-validation.md](04-segment-page-validation.md) | Every value on the page matches the API and CHURN-9. **Labelling Bug CHURN-70:** the page calls mean predicted probability "Churn Rate". |
+| CHURN-11 Dashboard | [../analytics/DASHBOARD_ANALYTICS_VALIDATION.md](../analytics/DASHBOARD_ANALYTICS_VALIDATION.md) §10 | Inputs unchanged. The recomputation reproduces byte-for-byte on Python 3.10.13. All 15 KPIs match the API and the browser. No mismatch. |
 
-* CHURN-11's results are in the dashboard validation document.
-* **CHURN-7 to CHURN-10 are still To Do in Jira.**
-* The quality checks (§5) and behaviour findings (§6) above overlap their topics. They are **not** a substitute for those Stories' own deliverables, and those Stories have not been marked as done.
+**Shared limitations:**
+* The data is synthetic.
+* All findings are associations, not causes.
+* Small groups (n < 100) have wide confidence intervals.
+* Predicted values are a snapshot of the current model (CHURN-57). Retraining changes them.
