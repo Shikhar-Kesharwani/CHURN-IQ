@@ -6,7 +6,7 @@
 >
 > **What happened:**
 > * **Sprint 1 planning was held on 20 November 2026,** with all four members present, as confirmed by Avanish. It is recorded on CHURN-58 (Done, comments 10083–10085).
-> * **No planning meeting was held for Sprint 2 or Sprint 3.** This is recorded on CHURN-62 and CHURN-66, which stay To Do.
+> * **No planning meeting was held for Sprint 2 or Sprint 3.** This is recorded on CHURN-62 and CHURN-66, which were closed as not applicable on 26 Nov.
 > * **No stand-ups, sprint reviews or retrospectives were held.** No burndown chart or sprint report exists.
 >
 > **Team decisions that replaced the process below:**
@@ -30,7 +30,7 @@
 > **Later on 25 Nov:** under the same two decisions, the shared ceremony records CHURN-35, 60, 63, 64, 67 and 68 were closed as **not applicable**.
 > * Their original Definitions of Done are kept in the descriptions, and each carries the label `not-applicable`.
 > * Closing them does not mean any review, retrospective or stand-up took place.
-> * CHURN-59, 62 and 66 (assigned records of the same kind) are unchanged.
+> * CHURN-62 and 66 were closed the same way on 26 Nov. CHURN-59 (Shikhar's) is unchanged.
 >
 > **Current issue status** is in `docs/PROJECT_PROGRESS_REPORT.md`, section F.
 
