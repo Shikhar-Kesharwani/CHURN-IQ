@@ -1,0 +1,305 @@
+{
+  "segments": {
+    "by_plan": [
+      {
+        "group": "Basic",
+        "n_independent": 2226,
+        "n_api": 2226,
+        "mean_predicted_independent": 43.4,
+        "churn_rate_pct_api": 43.4,
+        "observed_churn_independent": 43.9,
+        "gap_observed_minus_predicted": 0.5,
+        "match": true
+      },
+      {
+        "group": "Premium",
+        "n_independent": 980,
+        "n_api": 980,
+        "mean_predicted_independent": 40.7,
+        "churn_rate_pct_api": 40.7,
+        "observed_churn_independent": 40.2,
+        "gap_observed_minus_predicted": -0.5,
+        "match": true
+      },
+      {
+        "group": "Standard",
+        "n_independent": 1795,
+        "n_api": 1795,
+        "mean_predicted_independent": 44.0,
+        "churn_rate_pct_api": 44.0,
+        "observed_churn_independent": 43.6,
+        "gap_observed_minus_predicted": -0.4,
+        "match": true
+      }
+    ],
+    "by_device": [
+      {
+        "group": "Laptop",
+        "n_independent": 1286,
+        "n_api": 1286,
+        "mean_predicted_independent": 41.7,
+        "churn_rate_pct_api": 41.7,
+        "observed_churn_independent": 39.7,
+        "gap_observed_minus_predicted": -2.0,
+        "match": true
+      },
+      {
+        "group": "Mobile",
+        "n_independent": 1292,
+        "n_api": 1292,
+        "mean_predicted_independent": 44.0,
+        "churn_rate_pct_api": 44.0,
+        "observed_churn_independent": 45.5,
+        "gap_observed_minus_predicted": 1.5,
+        "match": true
+      },
+      {
+        "group": "Smart TV",
+        "n_independent": 1216,
+        "n_api": 1216,
+        "mean_predicted_independent": 43.6,
+        "churn_rate_pct_api": 43.6,
+        "observed_churn_independent": 43.6,
+        "gap_observed_minus_predicted": 0.0,
+        "match": true
+      },
+      {
+        "group": "Tablet",
+        "n_independent": 1207,
+        "n_api": 1207,
+        "mean_predicted_independent": 43.1,
+        "churn_rate_pct_api": 43.1,
+        "observed_churn_independent": 43.6,
+        "gap_observed_minus_predicted": 0.5,
+        "match": true
+      }
+    ],
+    "by_tenure": [
+      {
+        "group": "0-3m",
+        "n_independent": 206,
+        "n_api": 206,
+        "mean_predicted_independent": 70.1,
+        "churn_rate_pct_api": 70.1,
+        "observed_churn_independent": 72.3,
+        "gap_observed_minus_predicted": 2.2,
+        "match": true
+      },
+      {
+        "group": "3-6m",
+        "n_independent": 336,
+        "n_api": 336,
+        "mean_predicted_independent": 55.7,
+        "churn_rate_pct_api": 55.7,
+        "observed_churn_independent": 57.4,
+        "gap_observed_minus_predicted": 1.7,
+        "match": true
+      },
+      {
+        "group": "6-12m",
+        "n_independent": 898,
+        "n_api": 898,
+        "mean_predicted_independent": 47.2,
+        "churn_rate_pct_api": 47.2,
+        "observed_churn_independent": 44.8,
+        "gap_observed_minus_predicted": -2.4,
+        "match": true
+      },
+      {
+        "group": "1-2yr",
+        "n_independent": 1622,
+        "n_api": 1622,
+        "mean_predicted_independent": 46.0,
+        "churn_rate_pct_api": 46.0,
+        "observed_churn_independent": 47.0,
+        "gap_observed_minus_predicted": 1.0,
+        "match": true
+      },
+      {
+        "group": "2yr+",
+        "n_independent": 1939,
+        "n_api": 1939,
+        "mean_predicted_independent": 33.7,
+        "churn_rate_pct_api": 33.7,
+        "observed_churn_independent": 33.5,
+        "gap_observed_minus_predicted": -0.2,
+        "match": true
+      }
+    ],
+    "by_genre": [
+      {
+        "group": "Action",
+        "n_independent": 679,
+        "n_api": 679,
+        "mean_predicted_independent": 42.6,
+        "churn_rate_pct_api": 42.6,
+        "observed_churn_independent": 41.1,
+        "gap_observed_minus_predicted": -1.5,
+        "match": true
+      },
+      {
+        "group": "Comedy",
+        "n_independent": 732,
+        "n_api": 732,
+        "mean_predicted_independent": 42.0,
+        "churn_rate_pct_api": 42.0,
+        "observed_churn_independent": 42.2,
+        "gap_observed_minus_predicted": 0.2,
+        "match": true
+      },
+      {
+        "group": "Documentary",
+        "n_independent": 738,
+        "n_api": 738,
+        "mean_predicted_independent": 45.4,
+        "churn_rate_pct_api": 45.4,
+        "observed_churn_independent": 46.3,
+        "gap_observed_minus_predicted": 0.9,
+        "match": true
+      },
+      {
+        "group": "Drama",
+        "n_independent": 723,
+        "n_api": 723,
+        "mean_predicted_independent": 42.3,
+        "churn_rate_pct_api": 42.3,
+        "observed_churn_independent": 41.8,
+        "gap_observed_minus_predicted": -0.5,
+        "match": true
+      },
+      {
+        "group": "Kids",
+        "n_independent": 727,
+        "n_api": 727,
+        "mean_predicted_independent": 42.9,
+        "churn_rate_pct_api": 42.9,
+        "observed_churn_independent": 43.5,
+        "gap_observed_minus_predicted": 0.6,
+        "match": true
+      },
+      {
+        "group": "Romance",
+        "n_independent": 694,
+        "n_api": 694,
+        "mean_predicted_independent": 43.4,
+        "churn_rate_pct_api": 43.4,
+        "observed_churn_independent": 43.9,
+        "gap_observed_minus_predicted": 0.5,
+        "match": true
+      },
+      {
+        "group": "Thriller",
+        "n_independent": 708,
+        "n_api": 708,
+        "mean_predicted_independent": 42.9,
+        "churn_rate_pct_api": 42.9,
+        "observed_churn_independent": 42.7,
+        "gap_observed_minus_predicted": -0.2,
+        "match": true
+      }
+    ]
+  },
+  "segments_overall": {
+    "api": {
+      "total_customers": 5001,
+      "scored_customers": 5001,
+      "unscored_count": 0,
+      "avg_churn_rate_pct": 43.1,
+      "total_revenue_at_risk": 905045.48
+    },
+    "independent_mean_predicted_pct": 43.1,
+    "independent_observed_pct": 43.1
+  },
+  "dashboard_vs_recomputed_values_json": {
+    "total_customers": {
+      "api": 5001,
+      "recomputed": 5001,
+      "match": true
+    },
+    "high_risk_count": {
+      "api": 888,
+      "recomputed": 888,
+      "match": true
+    },
+    "medium_risk_count": {
+      "api": 1445,
+      "recomputed": 1445,
+      "match": true
+    },
+    "low_risk_count": {
+      "api": 2668,
+      "recomputed": 2668,
+      "match": true
+    },
+    "high_risk_pct": {
+      "api": 17.8,
+      "recomputed": 17.8,
+      "match": true
+    },
+    "avg_churn_probability": {
+      "api": 0.4309,
+      "recomputed": 0.4309,
+      "match": true
+    },
+    "revenue_at_risk_monthly": {
+      "api": 905045.48,
+      "recomputed": 905045.48,
+      "match": true
+    },
+    "high_value_at_risk": {
+      "api": 3,
+      "recomputed": 3,
+      "match": true
+    },
+    "signal_low_engagement": {
+      "api": 1449,
+      "recomputed": 1449,
+      "match": true
+    },
+    "signal_payment_issues": {
+      "api": 2000,
+      "recomputed": 2000,
+      "match": true
+    },
+    "signal_new_customers": {
+      "api": 433,
+      "recomputed": 433,
+      "match": true
+    },
+    "signal_support_issues": {
+      "api": 1237,
+      "recomputed": 1237,
+      "match": true
+    },
+    "clv_tier_Low": {
+      "api": 2125,
+      "recomputed": 2125,
+      "match": true
+    },
+    "clv_tier_Medium": {
+      "api": 1635,
+      "recomputed": 1635,
+      "match": true
+    },
+    "clv_tier_High": {
+      "api": 1241,
+      "recomputed": 1241,
+      "match": true
+    }
+  },
+  "dashboard_api_kpis": {
+    "total_customers": 5001,
+    "high_risk_count": 888,
+    "medium_risk_count": 1445,
+    "low_risk_count": 2668,
+    "unscored_count": 0,
+    "scored_customers": 5001,
+    "high_risk_pct": 17.8,
+    "avg_churn_probability": 0.4309,
+    "avg_churn_percent": "43.1%",
+    "revenue_at_risk_monthly": 905045.48,
+    "revenue_at_risk_formatted": "₹905,045",
+    "high_value_at_risk": 3
+  },
+  "mismatches": []
+}
