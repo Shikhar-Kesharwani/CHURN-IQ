@@ -165,7 +165,8 @@ def test_clearing_payment_failures_never_meaningfully_increases_risk(client, sam
 @pytest.mark.parametrize('change', [{'watch_hours_per_week': 40.0}, {'logins_last_30_days': 26},
                                     {'tenure_months': 72}])
 def test_engagement_and_loyalty_improvements_lower_risk_on_average(client, sample, change):
-    # Not monotonic per customer (see docs/api/README.md §6) — asserted on average.
+    # Asserted on average here; per-customer monotonicity of the production model
+    # (CHURN-45/57) is asserted strictly in tests/test_monotonic_constraints.py.
     ch = np.array([_whatif(client, cid, **change).change for cid in sample])
     assert ch.mean() < 0
 

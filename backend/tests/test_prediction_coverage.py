@@ -71,11 +71,14 @@ def test_oof_probabilities_come_from_their_fold_model(api, fold_bundle):
     main, _ = api
     p = main.PREDICTIONS_DF
     oof = p[p['prediction_source'] == 'cv_out_of_fold']
-    assert fold_bundle['model_config'] == 'baseline' and len(fold_bundle['models']) == 5
+    assert fold_bundle['model_config'] == pipeline.PRODUCTION_CONFIG and len(fold_bundle['models']) == 5
     for fold, grp in oof.groupby('fold'):
         X = main.FEATURE_MATRIX.loc[grp['customer_id']]
         prob = fold_bundle['models'][int(fold)].predict_proba(X)[:, 1]
-        assert np.abs(np.round(prob, 4) - grp['churn_prob'].values).max() < 1e-6
+        # Stored values are rounded to 4 dp. Compare the unrounded prediction at half a
+        # rounding unit: rounding both sides fails when float noise (~1e-8 between the
+        # training-time and serving-time matrices) lands a value on a .00005 boundary.
+        assert np.abs(prob - grp['churn_prob'].values).max() <= 5e-5 + 1e-6
 
 
 def test_holdout_rows_still_come_from_committed_model(artifacts):
@@ -90,7 +93,7 @@ def test_oof_quality_comparable_to_holdout():
     import json, os
     with open(os.path.join(ev.RESULTS_DIR, 'prediction_coverage.json')) as f:
         r = json.load(f)['metrics_by_source']
-    assert r['holdout_test']['roc_auc'] == 0.7167
+    assert r['holdout_test']['roc_auc'] == 0.7597      # CHURN-57 production model
     assert 0.70 < r['cv_out_of_fold']['roc_auc'] < 0.80     # not in-sample (that would be ~0.96)
     for src in ('holdout_test', 'cv_out_of_fold'):
         assert abs(r[src]['mean_predicted'] - r[src]['observed_churn_rate']) < 0.03

@@ -2,15 +2,14 @@
 #   ChurnIQ Pro — Full-coverage customer predictions (CHURN-37)
 # =============================================================================
 #   Regenerates backend/customer_predictions.csv so that EVERY eligible
-#   customer has a genuine, leakage-safe model prediction — without
-#   retraining or replacing the production model (churniq_model.pkl):
+#   customer has a genuine, leakage-safe model prediction from the committed
+#   production model (churniq_model.pkl) and its recipe:
 #
 #     holdout_test    (1,000)  committed production model; these customers were
-#                              never seen in training. Values are verified to
-#                              be identical to the previously committed CSV.
+#                              never seen in training.
 #     cv_out_of_fold  (4,000)  training customers: 5-fold stratified CV over the
 #                              training split with the production recipe
-#                              (SMOTE inside training folds + XGB_PARAMS); each
+#                              (pipeline.PRODUCTION_CONFIG, CHURN-57); each
 #                              customer is scored by the fold model that did
 #                              not see them. SHAP from that fold model.
 #     demo            (CUST99999) committed production model (not in training).
@@ -78,7 +77,7 @@ def source_metrics(part: pd.DataFrame) -> dict:
 
 
 def run(write=True):
-    model, feature_names, dataset, old_predictions = ev.load_artifacts()
+    model, feature_names, dataset, _ = ev.load_artifacts()
 
     # ── Eligibility ────────────────────────────────────────────────────────
     invalid = {r['customer_id']: core.validate_raw_record(r)
@@ -92,19 +91,14 @@ def run(write=True):
     test_part['prediction_source'] = 'holdout_test'
     test_part['fold'] = pd.NA
 
-    # Must reproduce the previously committed test predictions exactly
-    old = old_predictions.fillna({'top_reason_1': 'N/A', 'top_reason_2': 'N/A',
-                                  'top_reason_3': 'N/A'}).set_index('customer_id')
-    new = test_part.set_index('customer_id')
-    old = old.loc[new.index]
-    for col in PRED_COLS:
-        if col in ('churn_prob', 'clv_score'):
-            assert np.allclose(old[col].values, new[col].values, atol=0.011), col
-        else:
-            assert (old[col].values == new[col].values).all(), col
+    # The written probabilities must be exactly the production model's output
+    direct = pd.Series(model.predict_proba(X_test)[:, 1], index=base.loc[X_test.index, 'customer_id'])
+    written = test_part.set_index('customer_id')['churn_prob']
+    assert np.allclose(written.values, direct.loc[written.index].round(4).values, atol=1e-9)
 
     # ── 2. Training customers: out-of-fold predictions ─────────────────────
-    oof_part, fold_models = pipeline.build_oof_predictions(base, X_train, y_train, 'baseline')
+    oof_part, fold_models = pipeline.build_oof_predictions(base, X_train, y_train,
+                                                           pipeline.PRODUCTION_CONFIG)
 
     # ── 3. Demo customers (not part of the split): committed model ─────────
     demo = eligible[eligible['customer_id'].isin(pipeline.DEMO_CUSTOMER_IDS)]
@@ -127,12 +121,13 @@ def run(write=True):
     clv_err = (clv_recomputed['monthly_charge'] * t * (1 - clv_recomputed['churn_prob'])
                - clv_recomputed['clv_score']).abs()
     results = {
-        'artifact': 'churniq_model.pkl (unchanged) for holdout_test + demo; '
-                    '5 fold models (production recipe) for cv_out_of_fold',
+        'artifact': 'churniq_model.pkl for holdout_test + demo; '
+                    '5 fold models (same production recipe) for cv_out_of_fold',
+        'production_model_config': pipeline.PRODUCTION_CONFIG,
         'environment': {'xgboost': xgboost.__version__, 'scikit_learn': sklearn.__version__,
                         'python': platform.python_version(), 'platform': platform.platform()},
         'oof': {'n_splits': pipeline.OOF_N_SPLITS, 'seed': pipeline.SEED,
-                'recipe': 'SMOTE (training folds only) + XGB_PARAMS (baseline/production)',
+                'recipe': pipeline.PRODUCTION_CONFIG + ' (same recipe as churniq_model.pkl)',
                 'fold_train_rows': [int(len(tr)) for tr, _ in pipeline.oof_folds(X_train, y_train)]},
         'coverage': {
             'customers_in_dataset': int(len(dataset)),
@@ -143,7 +138,7 @@ def run(write=True):
             'churn_prob_in_0_1': bool(predictions['churn_prob'].between(0, 1).all()),
             'any_nan': bool(predictions[PRED_COLS].isna().any().any()),
         },
-        'test_rows_identical_to_previous_csv': True,
+        'holdout_rows_match_production_model': True,
         'metrics_by_source': by_source,
         'clv_formula_max_abs_error_vs_rounded_prob': round(float(clv_err.max()), 4),
         'tiers_consistent': bool((predictions['clv_score'].map(core.get_clv_segment).notna()).all()
@@ -155,7 +150,7 @@ def run(write=True):
         predictions.to_csv(ev._path('customer_predictions.csv'), index=False)
         with open(ev._path('oof_fold_models.pkl'), 'wb') as f:
             pickle.dump({'models': fold_models, 'feature_names': list(feature_names),
-                         'model_config': 'baseline', 'n_splits': pipeline.OOF_N_SPLITS,
+                         'model_config': pipeline.PRODUCTION_CONFIG, 'n_splits': pipeline.OOF_N_SPLITS,
                          'seed': pipeline.SEED, 'xgboost_version': xgboost.__version__}, f)
         os.makedirs(ev.RESULTS_DIR, exist_ok=True)
         with open(os.path.join(ev.RESULTS_DIR, 'prediction_coverage.json'), 'w') as f:

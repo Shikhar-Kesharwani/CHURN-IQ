@@ -1,5 +1,7 @@
 # CHURN-16 — CLV Calculation and Tier Verification
 
+> **Model update, 24 Nov 2026 (CHURN-57).** The production model has been replaced by the regularised recipe with monotone constraints (`regularised_monotonic`, [07-monotonic-constraints.md](07-monotonic-constraints.md)). The analysis below describes the **previous** committed model and is kept as the historical record. Its script has been re-run on the new model, and the current figures are in `results/prediction_coverage.json`: hold-out ROC-AUC 0.7597, out-of-fold 0.7737. The tier-boundary customers in `tests/test_clv.py` were re-selected for the new probabilities.
+
 **Code:** `backend/churniq_core.py` (`calc_clv`, `get_clv_segment`), used by both the pipeline and the API
 **Tests:** `backend/tests/test_clv.py`
 

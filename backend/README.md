@@ -27,10 +27,10 @@ ChurnIQ Pro goes beyond basic churn prediction — it tells you **WHO** will chu
 ##  Features
 
 ###  Churn Prediction Engine
-- **XGBoost** gradient boosting model trained on 5,000 OTT customers
-- **SMOTE** applied to handle class imbalance (training set only)
+- **XGBoost** gradient boosting model trained on 5,000 OTT customers: the regularised recipe (depth 2, learning rate 0.03, 400 trees, no SMOTE) with **monotone constraints** on the What-If features (CHURN-45 / CHURN-57, [`docs/ml/07-monotonic-constraints.md`](../docs/ml/07-monotonic-constraints.md))
 - Predicts churn probability from 0–100% per customer
-- Achieves **ROC-AUC: 0.72** on held-out test set (verified: 0.7167; accuracy 0.667, precision 0.623, recall 0.578, F1 0.599 — see [`docs/ml/02-model-evaluation.md`](../docs/ml/02-model-evaluation.md))
+- Achieves **ROC-AUC: 0.76** on the held-out test set. Verified: 0.7597; accuracy 0.703, precision 0.679, recall 0.589, F1 0.631, Brier 0.196. See `docs/ml/results/evaluation_results.json`. The previous SMOTE + XGBoost model scored 0.7167
+- Recorded training config and seed: `model_metadata.json`. Retrain from the committed dataset with `python churniq_ml_pipeline.py --from-dataset ott_churn_dataset.csv --output-dir .`, then `python generate_predictions.py`
 - Preprocessing shared between training and the API in `churniq_core.py` (no training/serving skew)
 - ML validation reports for pipeline, evaluation, SHAP, CLV and model research: [`docs/ml/`](../docs/ml/README.md)
 
