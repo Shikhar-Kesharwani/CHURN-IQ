@@ -71,3 +71,5 @@ VITE_API_URL=http://127.0.0.1:8000 npm run build
 ```
 
 `.env.production` holds only the public production API URL. Anything in a `VITE_*` variable is compiled into the public JavaScript bundle, so never put a secret there. The email API token is typed in by the operator at send time and kept in `sessionStorage` only.
+
+The backend only answers CORS requests from the deployed frontend and `localhost:5173` / `localhost:4173` (CHURN-54). If you run the dev server on another port or host, add that origin to the backend's `CORS_ALLOWED_ORIGINS`. See [`docs/deployment/PRODUCTION_CONFIGURATION.md`](../docs/deployment/PRODUCTION_CONFIGURATION.md).

@@ -209,7 +209,12 @@ export EMAIL_API_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe
 # Optional rate limit (defaults: 5 requests per 600 s per client)
 export EMAIL_RATE_LIMIT_MAX=5
 export EMAIL_RATE_LIMIT_WINDOW_SECONDS=600
+
+# Optional (CHURN-54): browser origins allowed by CORS, comma-separated.
+# Default: the deployed frontend plus localhost:5173 / localhost:4173 (Vite dev/preview).
+export CORS_ALLOWED_ORIGINS="https://churn-iq-frontend-five.vercel.app,http://localhost:5173"
 ```
+Every deployment variable is listed in [`docs/deployment/PRODUCTION_CONFIGURATION.md`](../docs/deployment/PRODUCTION_CONFIGURATION.md).
 The frontend asks for this token the first time you click **Send Email**.
 API clients send it as `Authorization: Bearer <token>`.
 
