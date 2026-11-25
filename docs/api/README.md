@@ -344,7 +344,9 @@ The same commands were run before (on `main` @ `7d605c5`) and after (this branch
 
 ### 9.1 Setup
 
-`requirements-dev.txt` pins `matplotlib==3.11.2`, which requires Python ≥ 3.11. It **cannot be installed on Python 3.10.13** (pre-existing; see §11). The 3.10.13 environment was built with:
+**Update (CHURN-46):** `requirements-dev.txt` now pins `matplotlib==3.10.9` and installs on Python 3.10.13, so the full environment is simply `pip install -r requirements.txt -r requirements-dev.txt`. The text below records how the environment was built at the time of PR #2.
+
+At that time, `requirements-dev.txt` pinned `matplotlib==3.11.2`, which requires Python ≥ 3.11. It **could not be installed on Python 3.10.13** (see §11). The 3.10.13 environment was built with:
 
 ```bash
 cd backend
@@ -439,8 +441,11 @@ All six were found in this review, fixed on this branch, and linked to their sto
 1. **Gemini live testing is manual.** The automated tests mock Gemini, so they need no API key. A manual live test after PR #3 succeeded (200, `ai_generated: true`, `generated_by: gemini-3.5-flash`; §5.3). It is not repeated automatically.
 2. **No live SMTP test.** SMTP was mocked; no email was sent.
 3. **`/send-email` is now protected by a bearer token and a rate limit** (CHURN-44, [§12](#12-email-endpoint-security-churn-44)). The limiter is in-memory and per process. The other endpoints are still unauthenticated with `allow_origins=["*"]`. They are read-only or compute-only and send nothing.
-4. ~~**What-If is not monotonic per customer** (§7).~~ **Resolved** by CHURN-45 (evaluation and decision) and CHURN-57 (adoption): the production model now uses XGBoost monotone constraints. See §7 and docs/ml/07.
-5. **`requirements-dev.txt` cannot be installed on Python 3.10.13** (`matplotlib==3.11.2` needs ≥ 3.11), while `runtime.txt` says 3.10.13. This is pre-existing and not changed here, because it belongs to the E2 tooling. The 3.10-compatible install is in §9.1.
+
+4. ~~**What-If is not monotonic per customer** (§7).~~ **Resolved** by CHURN-45 (evaluation and decision) and CHURN-57 (adoption): the production model now uses XGBoost monotone constraints. See §7 and docs/ml/07-monotonic-constraints.md.
+
+5. **`requirements-dev.txt` cannot be installed on Python 3.10.13** (`matplotlib==3.11.2` needs ≥ 3.11), while `runtime.txt` says 3.10.13. This is pre-existing and not changed here, because it belongs to the E2 tooling. The 3.10-compatible install is in §9.1. **Resolved later by CHURN-46** (matplotlib pinned to 3.10.9; CI runs on 3.10.13).
+
 6. **`GET /customers` defaults to `limit=500`**, so the Risk Table page shows only 500 of 5,001 customers (pre-existing UI behaviour, unchanged).
 7. **What-If bounds are wider than the training data**, and the model is flat beyond the training range (§3).
 8. Import-time degraded-artifact branches are only partly covered (§8).
